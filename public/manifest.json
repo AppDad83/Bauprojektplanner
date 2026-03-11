@@ -1,0 +1,20 @@
+{
+  "name": "Apleona Bauprojektmanagement",
+  "short_name": "Apleona PM",
+  "description": "Projektsteuerung und -management für Bauprojekte",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F1F3F5",
+  "theme_color": "#002D5A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "de"
+}

@@ -1,0 +1,232 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --apleona-navy: #002D5A;
+  --apleona-navy-dark: #001F3F;
+  --apleona-navy-light: #003D7A;
+  --apleona-red: #E30613;
+  --apleona-red-dark: #B80510;
+  --apleona-red-light: #FF1A27;
+}
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-apleona-gray-100 text-apleona-gray-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-apleona-navy text-white rounded-lg font-medium
+           hover:bg-apleona-navy-dark transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-apleona-navy focus:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-apleona-gray-200 text-apleona-gray-800 rounded-lg font-medium
+           hover:bg-apleona-gray-300 transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-apleona-gray-400 focus:ring-offset-2;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 bg-apleona-red text-white rounded-lg font-medium
+           hover:bg-apleona-red-dark transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-apleona-red focus:ring-offset-2;
+  }
+
+  .btn-success {
+    @apply px-4 py-2 bg-status-green text-white rounded-lg font-medium
+           hover:opacity-90 transition-colors duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-apleona-gray-200 p-6;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 border border-apleona-gray-300 rounded-lg
+           focus:outline-none focus:ring-2 focus:ring-apleona-navy focus:border-transparent
+           bg-white text-apleona-gray-900;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-apleona-gray-700 mb-1;
+  }
+
+  .ampel-gruen {
+    @apply bg-status-green text-white;
+  }
+
+  .ampel-gelb {
+    @apply bg-status-yellow text-apleona-gray-900;
+  }
+
+  .ampel-rot {
+    @apply bg-status-red text-white;
+  }
+
+  .ampel-dot-gruen {
+    @apply w-3 h-3 rounded-full bg-status-green;
+  }
+
+  .ampel-dot-gelb {
+    @apply w-3 h-3 rounded-full bg-status-yellow;
+  }
+
+  .ampel-dot-rot {
+    @apply w-3 h-3 rounded-full bg-status-red;
+  }
+
+  .table-header {
+    @apply bg-apleona-navy text-white text-left text-sm font-semibold;
+  }
+
+  .table-row {
+    @apply border-b border-apleona-gray-200 hover:bg-apleona-gray-50;
+  }
+
+  .tab-active {
+    @apply border-b-2 border-apleona-navy text-apleona-navy font-medium;
+  }
+
+  .tab-inactive {
+    @apply text-apleona-gray-600 hover:text-apleona-navy;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply badge bg-green-100 text-green-800;
+  }
+
+  .badge-warning {
+    @apply badge bg-yellow-100 text-yellow-800;
+  }
+
+  .badge-danger {
+    @apply badge bg-red-100 text-red-800;
+  }
+
+  .badge-info {
+    @apply badge bg-blue-100 text-blue-800;
+  }
+
+  .progress-bar {
+    @apply h-2 rounded-full overflow-hidden bg-apleona-gray-200;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-300;
+  }
+
+  /* Schlussrechnung hervorheben */
+  .schlussrechnung {
+    @apply bg-amber-50 border-l-4 border-amber-500;
+  }
+}
+
+/* Gantt-Diagramm Styles */
+.gantt-container {
+  @apply overflow-x-auto;
+}
+
+.gantt-row {
+  @apply flex items-center border-b border-apleona-gray-200;
+}
+
+.gantt-bar {
+  @apply h-8 rounded relative;
+}
+
+.gantt-bar-soll {
+  @apply bg-apleona-navy opacity-50;
+}
+
+.gantt-bar-ist {
+  @apply bg-apleona-navy;
+}
+
+.gantt-bar-verzögert {
+  @apply bg-status-red;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  @apply w-2 h-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-apleona-gray-100 rounded;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-apleona-gray-400 rounded hover:bg-apleona-gray-500;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+}
+
+.modal-content {
+  @apply bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto;
+}
+
+/* Datepicker */
+input[type="date"] {
+  @apply input-field;
+}
+
+/* Select */
+select {
+  @apply input-field cursor-pointer;
+}
+
+/* Checkbox & Radio */
+input[type="checkbox"],
+input[type="radio"] {
+  @apply w-4 h-4 text-apleona-navy border-apleona-gray-300 rounded
+         focus:ring-apleona-navy focus:ring-2;
+}
+
+/* File Input */
+input[type="file"] {
+  @apply block w-full text-sm text-apleona-gray-500
+         file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+         file:text-sm file:font-semibold file:bg-apleona-navy file:text-white
+         hover:file:bg-apleona-navy-dark file:cursor-pointer;
+}
+
+/* Tooltips */
+[data-tooltip] {
+  @apply relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  @apply absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2
+         px-2 py-1 bg-apleona-gray-800 text-white text-xs rounded whitespace-nowrap z-50;
+}
+
+/* Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white;
+  }
+
+  .card {
+    @apply shadow-none border-none;
+  }
+}

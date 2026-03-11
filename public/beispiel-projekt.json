@@ -1,0 +1,276 @@
+{
+  "version": "1.0.0",
+  "erstelltAm": "2026-03-01T10:00:00.000Z",
+  "geaendertAm": "2026-03-11T07:00:00.000Z",
+  "projekte": [
+    {
+      "id": "proj-001",
+      "projektnummerEigentuemer": "EIG-2026-001",
+      "projektnummerApleona": "APL-2026-0042",
+      "name": "Sanierung Bürogebäude Hauptstraße 15",
+      "beschreibung": "Kernsanierung des 5-stöckigen Bürogebäudes inkl. TGA-Erneuerung",
+      "liegenschaftAdresse": "Hauptstraße 15, 60313 Frankfurt am Main",
+      "eigentuemer": ["Max Mustermann", "Immobilien GmbH"],
+      "status": "gelb",
+      "aktuellePhase": "Ausführung",
+      "startDatumSoll": "2026-01-15",
+      "startDatumIst": "2026-01-20",
+      "endDatumSoll": "2026-09-30",
+      "projektbudgetHistorie": [
+        {
+          "id": "bud-001",
+          "datum": "2026-01-10",
+          "betragNetto": 2500000,
+          "freigabeDatum": "2026-01-12"
+        }
+      ],
+      "projektbudgetFreigegeben": 2500000,
+      "feePercent": 3.5,
+      "feeHistorie": [
+        {
+          "id": "fee-001",
+          "datum": "2026-01-10",
+          "feePercent": 3.5,
+          "grund": "Vertragsabschluss"
+        }
+      ],
+      "gewerke": [
+        {
+          "id": "gew-001",
+          "projektId": "proj-001",
+          "dinNummer": "440",
+          "bezeichnung": "Starkstromanlagen",
+          "teilabnahmen": [],
+          "notizen": "Kompletterneuerung der Elektroinstallation"
+        },
+        {
+          "id": "gew-002",
+          "projektId": "proj-001",
+          "dinNummer": "420",
+          "bezeichnung": "Wärmeversorgungsanlagen",
+          "teilabnahmen": [],
+          "notizen": "Neue Heizungsanlage mit Wärmepumpe"
+        },
+        {
+          "id": "gew-003",
+          "projektId": "proj-001",
+          "dinNummer": "330",
+          "bezeichnung": "Außenwände",
+          "teilabnahmen": [],
+          "notizen": "Fassadensanierung mit WDVS"
+        }
+      ],
+      "aufgaben": [
+        {
+          "id": "auf-001",
+          "ebene": "aufgabe",
+          "titel": "Elektroplanung abstimmen",
+          "beschreibung": "Abstimmung der Elektroplanung mit Fachplaner und Bauherr",
+          "gewerkId": "gew-001",
+          "phasen": ["Planung"],
+          "stakeholderIds": ["stak-001"],
+          "startDatumSoll": "2026-02-01",
+          "startDatumIst": "2026-02-03",
+          "endDatumSoll": "2026-02-28",
+          "endDatumIst": "2026-03-05",
+          "fortschrittProzent": 100,
+          "abhaengigkeitenIds": [],
+          "status": "erledigt",
+          "kommunikationsLog": [],
+          "unteraufgaben": []
+        },
+        {
+          "id": "auf-002",
+          "ebene": "aufgabe",
+          "titel": "Ausschreibung Elektroarbeiten",
+          "beschreibung": "Ausschreibung und Vergabe der Elektroarbeiten",
+          "gewerkId": "gew-001",
+          "phasen": ["Ausführungsvorbereitung"],
+          "stakeholderIds": [],
+          "startDatumSoll": "2026-03-01",
+          "endDatumSoll": "2026-03-31",
+          "fortschrittProzent": 60,
+          "abhaengigkeitenIds": ["auf-001"],
+          "status": "in_bearbeitung",
+          "kommunikationsLog": [],
+          "unteraufgaben": []
+        },
+        {
+          "id": "auf-003",
+          "ebene": "aufgabe",
+          "titel": "Fassadenarbeiten durchführen",
+          "beschreibung": "Durchführung der Fassadensanierung",
+          "gewerkId": "gew-003",
+          "phasen": ["Ausführung"],
+          "stakeholderIds": [],
+          "startDatumSoll": "2026-04-01",
+          "endDatumSoll": "2026-07-31",
+          "fortschrittProzent": 0,
+          "abhaengigkeitenIds": [],
+          "status": "offen",
+          "kommunikationsLog": [],
+          "unteraufgaben": []
+        }
+      ],
+      "stakeholder": [
+        {
+          "id": "stak-001",
+          "name": "Thomas Müller",
+          "firma": "Müller Elektroplanung GmbH",
+          "rolle": "Elektro-Fachplaner",
+          "telefon": "+49 69 12345678",
+          "email": "t.mueller@elektroplanung.de",
+          "typ": "extern"
+        },
+        {
+          "id": "stak-002",
+          "name": "Sandra Weber",
+          "firma": "Apleona Real Estate",
+          "rolle": "Projektleiterin",
+          "telefon": "+49 69 98765432",
+          "email": "s.weber@apleona.com",
+          "typ": "intern"
+        }
+      ],
+      "fachplaner": [
+        {
+          "id": "fp-001",
+          "typ": "fachplaner",
+          "name": "Elektroplanung",
+          "firma": "Müller Elektroplanung GmbH",
+          "kontakt": {
+            "ansprechpartner": "Thomas Müller",
+            "telefon": "+49 69 12345678",
+            "email": "t.mueller@elektroplanung.de"
+          },
+          "gewerkId": "gew-001",
+          "angebote": [
+            {
+              "id": "ang-001",
+              "datum": "2026-01-20",
+              "betragNetto": 45000,
+              "beschreibung": "Elektroplanung komplett"
+            }
+          ],
+          "vergabeEmpfehlung": {
+            "gesendetAm": "2026-01-25",
+            "genehmigtAm": "2026-01-28"
+          },
+          "budgetGenehmigt": 45000,
+          "budgetHistorie": [],
+          "rechnungen": [
+            {
+              "id": "re-001",
+              "rechnungsnummer": "RE-2026-0012",
+              "datum": "2026-02-15",
+              "betragNetto": 15000,
+              "typ": "teilrechnung",
+              "geprueft": true,
+              "freigegeben": true,
+              "bereitsInFeeAbgerechnet": false
+            }
+          ]
+        }
+      ],
+      "fachfirmen": [
+        {
+          "id": "ff-001",
+          "typ": "fachfirma",
+          "name": "Elektroinstallation",
+          "firma": "ElektroTech Frankfurt GmbH",
+          "kontakt": {
+            "ansprechpartner": "Klaus Schmidt",
+            "telefon": "+49 69 55544433",
+            "email": "k.schmidt@elektrotech-ffm.de"
+          },
+          "gewerkId": "gew-001",
+          "angebote": [
+            {
+              "id": "ang-002",
+              "datum": "2026-03-05",
+              "betragNetto": 320000,
+              "beschreibung": "Elektroinstallation komplett"
+            }
+          ],
+          "vergabeEmpfehlung": {
+            "gesendetAm": "2026-03-08"
+          },
+          "budgetGenehmigt": 320000,
+          "budgetHistorie": [],
+          "rechnungen": [],
+          "vertragserfuellung": {
+            "sicherheitseinbehaltNetto": 16000,
+            "buergschaft": {
+              "urkundeErhalten": false
+            }
+          },
+          "gewaehrleistung": {
+            "einbehaltNetto": 16000,
+            "buergschaft": {
+              "urkundeZurueckgesendet": false
+            }
+          }
+        },
+        {
+          "id": "ff-002",
+          "typ": "fachfirma",
+          "name": "Fassadenbau",
+          "firma": "Fassaden Meier AG",
+          "kontakt": {
+            "ansprechpartner": "Anna Meier",
+            "telefon": "+49 69 77788899",
+            "email": "a.meier@fassaden-meier.de"
+          },
+          "gewerkId": "gew-003",
+          "angebote": [],
+          "vergabeEmpfehlung": {},
+          "budgetGenehmigt": 450000,
+          "budgetHistorie": [],
+          "rechnungen": [],
+          "vertragserfuellung": {
+            "buergschaft": {
+              "urkundeErhalten": false
+            }
+          },
+          "gewaehrleistung": {
+            "buergschaft": {
+              "urkundeZurueckgesendet": false
+            }
+          }
+        }
+      ],
+      "nachtraege": [
+        {
+          "id": "nt-001",
+          "projektId": "proj-001",
+          "nachtragsnummer": "NT-001",
+          "datumStellung": "2026-03-01",
+          "beschreibung": "Zusätzliche Steckdosen im 3. OG",
+          "betragNettoAngefragt": 8500,
+          "status": "in_pruefung",
+          "fachplanerIdOderFachfirmaId": "ff-001",
+          "istFachplaner": false,
+          "notizen": "Nachforderung durch Mieter"
+        }
+      ],
+      "maengel": [
+        {
+          "id": "ma-001",
+          "projektId": "proj-001",
+          "mangelnummer": 1,
+          "datumFeststellung": "2026-03-05",
+          "beschreibung": "Kabelkanal im EG Flur nicht korrekt befestigt",
+          "ortBauteil": "EG Flur Nord",
+          "fotos": [],
+          "fachfirmaId": "ff-001",
+          "gewerkId": "gew-001",
+          "fristBehebung": "2026-03-15",
+          "status": "offen"
+        }
+      ],
+      "feeRechnungen": [],
+      "erstelltAm": "2026-01-10T09:00:00.000Z",
+      "geaendertAm": "2026-03-11T07:00:00.000Z"
+    }
+  ]
+}
