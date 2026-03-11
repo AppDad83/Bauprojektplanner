@@ -197,8 +197,8 @@ input[type="radio"] {
          focus:ring-apleona-navy focus:ring-2;
 }
 
-/* File Input */
-input[type="file"] {
+/* File Input - nur sichtbare Inputs stylen */
+input[type="file"]:not(.hidden) {
   @apply block w-full text-sm text-apleona-gray-500
          file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
          file:text-sm file:font-semibold file:bg-apleona-navy file:text-white

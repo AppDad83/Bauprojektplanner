@@ -32,15 +32,95 @@ const Dashboard: React.FC = () => {
   const [zeigeKopieModal, setZeigeKopieModal] = useState(false);
   const [ausgewaehltesProjektId, setAusgewaehltesProjektId] = useState<string | null>(null);
   const [neuerProjektname, setNeuerProjektname] = useState('');
+  const [suchbegriff, setSuchbegriff] = useState('');
 
   if (!daten) return null;
 
-  const projekte = daten.projekte;
-  const alleFristwarnungen = sammelAlleFristwarnungen(projekte);
+  // Erweiterte Suchfunktion - sucht in vielen Feldern
+  const sucheProjekte = (projekte: Projekt[], suche: string): Projekt[] => {
+    if (!suche.trim()) return projekte;
+    const s = suche.toLowerCase();
+
+    return projekte.filter(p => {
+      // Projektname, Nummern, Adresse
+      if (p.name.toLowerCase().includes(s)) return true;
+      if (p.projektnummerApleona?.toLowerCase().includes(s)) return true;
+      if (p.projektnummerEigentuemer?.toLowerCase().includes(s)) return true;
+      if (p.liegenschaftAdresse?.toLowerCase().includes(s)) return true;
+      if (p.beschreibung?.toLowerCase().includes(s)) return true;
+      if (p.notizen?.toLowerCase().includes(s)) return true;
+
+      // Eigentümer
+      if (p.eigentuemer.some(e => e.toLowerCase().includes(s))) return true;
+
+      // Phase
+      if (p.aktuellePhase.toLowerCase().includes(s)) return true;
+
+      // Stakeholder
+      if (p.stakeholder.some(sh =>
+        sh.name.toLowerCase().includes(s) ||
+        sh.firma.toLowerCase().includes(s) ||
+        sh.rolle.toLowerCase().includes(s)
+      )) return true;
+
+      // Fachplaner
+      if (p.fachplaner.some(fp =>
+        fp.firma.toLowerCase().includes(s) ||
+        fp.name.toLowerCase().includes(s) ||
+        fp.kontakt.ansprechpartner?.toLowerCase().includes(s) ||
+        fp.notizen?.toLowerCase().includes(s)
+      )) return true;
+
+      // Fachfirmen
+      if (p.fachfirmen.some(ff =>
+        ff.firma.toLowerCase().includes(s) ||
+        ff.name.toLowerCase().includes(s) ||
+        ff.kontakt.ansprechpartner?.toLowerCase().includes(s) ||
+        ff.notizen?.toLowerCase().includes(s)
+      )) return true;
+
+      // Gewerke
+      if (p.gewerke.some(g =>
+        g.bezeichnung.toLowerCase().includes(s) ||
+        g.dinNummer.toLowerCase().includes(s) ||
+        g.notizen?.toLowerCase().includes(s)
+      )) return true;
+
+      // Mängel
+      if (p.maengel.some(m =>
+        m.beschreibung.toLowerCase().includes(s) ||
+        m.ortBauteil.toLowerCase().includes(s) ||
+        m.notizen?.toLowerCase().includes(s)
+      )) return true;
+
+      // Nachträge
+      if (p.nachtraege.some(n =>
+        n.beschreibung.toLowerCase().includes(s) ||
+        n.nachtragsnummer.toLowerCase().includes(s) ||
+        n.notizen?.toLowerCase().includes(s)
+      )) return true;
+
+      // Aufgaben (inkl. Unteraufgaben)
+      if (p.aufgaben.some(a =>
+        a.titel.toLowerCase().includes(s) ||
+        a.beschreibung?.toLowerCase().includes(s) ||
+        a.unteraufgaben.some(ua =>
+          ua.titel.toLowerCase().includes(s) ||
+          ua.beschreibung?.toLowerCase().includes(s)
+        )
+      )) return true;
+
+      return false;
+    });
+  };
+
+  const alleProjekte = daten.projekte;
+  const projekte = sucheProjekte(alleProjekte, suchbegriff);
+  const alleFristwarnungen = sammelAlleFristwarnungen(alleProjekte);
   const dringendeFristen = alleFristwarnungen.filter(w => w.ampel === 'rot' || w.ampel === 'gelb').slice(0, 5);
 
   // Offene Eigentümer-Entscheidungen
-  const offeneEntscheidungen = projekte.flatMap(p => {
+  const offeneEntscheidungen = alleProjekte.flatMap(p => {
     const beteiligter = [...p.fachplaner, ...p.fachfirmen].filter(
       b => b.vergabeEmpfehlung.gesendetAm &&
            !b.vergabeEmpfehlung.genehmigtAm &&
@@ -54,7 +134,7 @@ const Dashboard: React.FC = () => {
   });
 
   // Bürgschaften die noch zurückgesendet werden müssen
-  const offeneBuergschaften = projekte.flatMap(p =>
+  const offeneBuergschaften = alleProjekte.flatMap(p =>
     p.fachfirmen
       .filter(ff => ff.gewaehrleistung.buergschaft && !ff.gewaehrleistung.buergschaft.urkundeZurueckgesendet)
       .map(ff => ({
@@ -64,7 +144,7 @@ const Dashboard: React.FC = () => {
   );
 
   // Offene Mängel mit überschrittener Frist
-  const ueberfaelligeMaengel = projekte.flatMap(p =>
+  const ueberfaelligeMaengel = alleProjekte.flatMap(p =>
     p.maengel
       .filter(m => {
         if (m.status === 'behoben' || m.status === 'abgenommen') return false;
@@ -79,7 +159,7 @@ const Dashboard: React.FC = () => {
   );
 
   // Offene Nachträge in Prüfung
-  const offeneNachtraege = projekte.flatMap(p =>
+  const offeneNachtraege = alleProjekte.flatMap(p =>
     p.nachtraege
       .filter(n => n.status === 'gestellt' || n.status === 'in_pruefung')
       .map(n => ({
@@ -262,7 +342,44 @@ const Dashboard: React.FC = () => {
 
         {/* Projektliste */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-apleona-gray-900 mb-4">Projekte</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-apleona-gray-900">Projekte</h2>
+            {/* Suchfeld */}
+            <div className="relative">
+              <input
+                type="text"
+                value={suchbegriff}
+                onChange={e => setSuchbegriff(e.target.value)}
+                placeholder="Suchen..."
+                className="input-field pl-10 w-64"
+              />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-apleona-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {suchbegriff && (
+                <button
+                  onClick={() => setSuchbegriff('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-apleona-gray-400 hover:text-apleona-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Suchhinweis */}
+          {suchbegriff && (
+            <p className="text-sm text-apleona-gray-500 mb-4">
+              {projekte.length} von {alleProjekte.length} Projekten gefunden für "{suchbegriff}"
+            </p>
+          )}
 
           {projekte.length === 0 ? (
             <div className="text-center py-12">
