@@ -23,6 +23,11 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [filterGewerk, setFilterGewerk] = useState<string>('alle');
   const [filterFachfirma, setFilterFachfirma] = useState<string>('alle');
   const [zeigeForoModal, setZeigeFotoModal] = useState<string | null>(null);
+  const [fullscreenFoto, setFullscreenFoto] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -402,17 +407,127 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
         </div>
       )}
 
-      {/* Foto-Modal */}
-      {zeigeForoModal && (
+      {/* Foto-Modal mit Übersicht */}
+      {zeigeForoModal && !fullscreenFoto && (
         <div className="modal-overlay" onClick={() => setZeigeFotoModal(null)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Fotos</h2>
+            <p className="text-sm text-apleona-gray-500 mb-4">Klicken Sie auf ein Foto für die Vollbildansicht</p>
             <div className="grid grid-cols-2 gap-4">
               {projekt.maengel.find(m => m.id === zeigeForoModal)?.fotos.map((foto, i) => (
-                <img key={i} src={foto} alt={`Foto ${i + 1}`} className="w-full rounded" />
+                <img
+                  key={i}
+                  src={foto}
+                  alt={`Foto ${i + 1}`}
+                  className="w-full rounded cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => {
+                    setFullscreenFoto(foto);
+                    setZoomLevel(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                />
               ))}
             </div>
             <button onClick={() => setZeigeFotoModal(null)} className="btn-secondary mt-4 w-full">Schließen</button>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Foto-Viewer */}
+      {fullscreenFoto && (
+        <div
+          className="fixed inset-0 bg-black z-50 flex items-center justify-center"
+          onClick={() => {
+            setFullscreenFoto(null);
+            setZoomLevel(1);
+            setPanPosition({ x: 0, y: 0 });
+          }}
+        >
+          {/* Toolbar */}
+          <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
+            <button
+              onClick={(e) => { e.stopPropagation(); setZoomLevel(z => Math.max(0.5, z - 0.25)); }}
+              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
+              title="Verkleinern"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            <span className="text-white text-sm bg-white/20 px-2 py-1 rounded">{Math.round(zoomLevel * 100)}%</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setZoomLevel(z => Math.min(4, z + 0.25)); }}
+              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
+              title="Vergrößern"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setZoomLevel(1); setPanPosition({ x: 0, y: 0 }); }}
+              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
+              title="Zurücksetzen"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreenFoto(null);
+                setZoomLevel(1);
+                setPanPosition({ x: 0, y: 0 });
+              }}
+              className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2"
+              title="Schließen"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Hinweis */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm">
+            Scrollen zum Zoomen • Ziehen zum Verschieben • Klicken zum Schließen
+          </div>
+
+          {/* Bild */}
+          <div
+            className="overflow-hidden w-full h-full flex items-center justify-center cursor-move"
+            onClick={e => e.stopPropagation()}
+            onWheel={(e) => {
+              e.preventDefault();
+              const delta = e.deltaY > 0 ? -0.1 : 0.1;
+              setZoomLevel(z => Math.max(0.5, Math.min(4, z + delta)));
+            }}
+            onMouseDown={(e) => {
+              setIsDragging(true);
+              setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+            }}
+            onMouseMove={(e) => {
+              if (isDragging) {
+                setPanPosition({
+                  x: e.clientX - dragStart.x,
+                  y: e.clientY - dragStart.y
+                });
+              }
+            }}
+            onMouseUp={() => setIsDragging(false)}
+            onMouseLeave={() => setIsDragging(false)}
+          >
+            <img
+              src={fullscreenFoto}
+              alt="Vollbild"
+              className="max-w-none"
+              style={{
+                transform: `scale(${zoomLevel}) translate(${panPosition.x / zoomLevel}px, ${panPosition.y / zoomLevel}px)`,
+                transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+              }}
+              draggable={false}
+            />
           </div>
         </div>
       )}

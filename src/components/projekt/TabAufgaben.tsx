@@ -42,8 +42,23 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
     status: 'offen' as AufgabenStatus
   });
 
+  // Filter für Gantt-Zeitraum
+  const [ganttVon, setGanttVon] = useState('');
+  const [ganttBis, setGanttBis] = useState('');
+
   // Zeitraum für Gantt berechnen
   const { minDatum, maxDatum, tageGesamt } = useMemo(() => {
+    // Wenn Filter gesetzt sind, diese verwenden
+    if (ganttVon && ganttBis) {
+      const min = new Date(ganttVon);
+      const max = new Date(ganttBis);
+      return {
+        minDatum: min,
+        maxDatum: max,
+        tageGesamt: Math.ceil((max.getTime() - min.getTime()) / (1000 * 60 * 60 * 24))
+      };
+    }
+
     const alleDaten: Date[] = [];
     projekt.aufgaben.forEach(a => {
       if (a.startDatumSoll) alleDaten.push(new Date(a.startDatumSoll));
@@ -68,7 +83,72 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
       maxDatum: max,
       tageGesamt: Math.ceil((max.getTime() - min.getTime()) / (1000 * 60 * 60 * 24))
     };
-  }, [projekt.aufgaben]);
+  }, [projekt.aufgaben, ganttVon, ganttBis]);
+
+  // Monate für Gantt-Header generieren
+  const monateHeader = useMemo(() => {
+    const monate: { label: string; breite: number; startTag: number }[] = [];
+    const aktuellesDatum = new Date(minDatum);
+    let tagIndex = 0;
+
+    while (aktuellesDatum <= maxDatum) {
+      const monatStart = tagIndex;
+      const jahr = aktuellesDatum.getFullYear();
+      const monat = aktuellesDatum.getMonth();
+      const monatName = aktuellesDatum.toLocaleDateString('de-DE', { month: 'short', year: 'numeric' });
+
+      // Zum Ende des Monats oder maxDatum gehen
+      while (aktuellesDatum.getMonth() === monat && aktuellesDatum <= maxDatum) {
+        aktuellesDatum.setDate(aktuellesDatum.getDate() + 1);
+        tagIndex++;
+      }
+
+      monate.push({
+        label: monatName,
+        breite: tagIndex - monatStart,
+        startTag: monatStart
+      });
+    }
+
+    return monate;
+  }, [minDatum, maxDatum]);
+
+  // Tage/Wochen für Gantt-Header generieren
+  const zeiteinheitenHeader = useMemo(() => {
+    const einheiten: { label: string; breite: number }[] = [];
+    const aktuellesDatum = new Date(minDatum);
+
+    if (zeitskala === 'tage') {
+      while (aktuellesDatum <= maxDatum) {
+        einheiten.push({ label: aktuellesDatum.getDate().toString(), breite: 1 });
+        aktuellesDatum.setDate(aktuellesDatum.getDate() + 1);
+      }
+    } else if (zeitskala === 'wochen') {
+      let wochenNr = 1;
+      while (aktuellesDatum <= maxDatum) {
+        const kw = getKalenderwoche(aktuellesDatum);
+        einheiten.push({ label: `KW ${kw}`, breite: 7 });
+        aktuellesDatum.setDate(aktuellesDatum.getDate() + 7);
+        wochenNr++;
+      }
+    } else {
+      // Monate - bereits in monateHeader
+      monateHeader.forEach(m => {
+        einheiten.push({ label: m.label, breite: m.breite });
+      });
+    }
+
+    return einheiten;
+  }, [minDatum, maxDatum, zeitskala, monateHeader]);
+
+  // Kalenderwoche berechnen
+  function getKalenderwoche(d: Date): number {
+    const date = new Date(d.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  }
 
   const toggleExpand = (id: string) => {
     const neu = new Set(expandedIds);
@@ -343,41 +423,95 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
       ) : (
         /* Gantt-Ansicht */
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
             <h3 className="font-semibold">Gantt-Diagramm</h3>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setZeitskala('tage')}
-                className={`px-3 py-1 text-sm rounded ${zeitskala === 'tage' ? 'bg-apleona-navy text-white' : 'bg-apleona-gray-200'}`}
-              >
-                Tage
-              </button>
-              <button
-                onClick={() => setZeitskala('wochen')}
-                className={`px-3 py-1 text-sm rounded ${zeitskala === 'wochen' ? 'bg-apleona-navy text-white' : 'bg-apleona-gray-200'}`}
-              >
-                Wochen
-              </button>
-              <button
-                onClick={() => setZeitskala('monate')}
-                className={`px-3 py-1 text-sm rounded ${zeitskala === 'monate' ? 'bg-apleona-navy text-white' : 'bg-apleona-gray-200'}`}
-              >
-                Monate
-              </button>
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Zeitraum-Filter */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-apleona-gray-600">Von:</span>
+                <input
+                  type="date"
+                  value={ganttVon}
+                  onChange={e => setGanttVon(e.target.value)}
+                  className="input-field py-1 px-2 w-36"
+                />
+                <span className="text-apleona-gray-600">Bis:</span>
+                <input
+                  type="date"
+                  value={ganttBis}
+                  onChange={e => setGanttBis(e.target.value)}
+                  className="input-field py-1 px-2 w-36"
+                />
+              </div>
+              {/* Zeitskala */}
+              <div className="flex space-x-1">
+                <button
+                  onClick={() => setZeitskala('tage')}
+                  className={`px-3 py-1 text-sm rounded ${zeitskala === 'tage' ? 'bg-apleona-navy text-white' : 'bg-apleona-gray-200'}`}
+                >
+                  Tage
+                </button>
+                <button
+                  onClick={() => setZeitskala('wochen')}
+                  className={`px-3 py-1 text-sm rounded ${zeitskala === 'wochen' ? 'bg-apleona-navy text-white' : 'bg-apleona-gray-200'}`}
+                >
+                  Wochen
+                </button>
+                <button
+                  onClick={() => setZeitskala('monate')}
+                  className={`px-3 py-1 text-sm rounded ${zeitskala === 'monate' ? 'bg-apleona-navy text-white' : 'bg-apleona-gray-200'}`}
+                >
+                  Monate
+                </button>
+              </div>
             </div>
           </div>
 
           {projekt.aufgaben.length === 0 ? (
             <p className="text-apleona-gray-500 text-center py-8">Keine Aufgaben für Gantt-Diagramm</p>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="min-w-[800px]">
-                {/* Header mit Zeitachse */}
-                <div className="flex border-b border-apleona-gray-200 pb-2 mb-4">
-                  <div className="w-48 flex-shrink-0 font-medium text-sm text-apleona-gray-600">Aufgabe</div>
-                  <div className="flex-1 relative">
-                    <div className="text-xs text-apleona-gray-500">
-                      {formatDatum(minDatum.toISOString())} - {formatDatum(maxDatum.toISOString())}
+            <div className="relative overflow-x-auto">
+              <div style={{ minWidth: `${Math.max(800, 200 + tageGesamt * (zeitskala === 'tage' ? 30 : zeitskala === 'wochen' ? 50 : 80))}px` }}>
+                {/* Header mit Zeitachse - zwei Zeilen */}
+                <div className="flex border-b border-apleona-gray-200">
+                  {/* Fixierte Aufgaben-Spalte Header */}
+                  <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-10 border-r border-apleona-gray-200">
+                    <div className="h-8 border-b border-apleona-gray-100"></div>
+                    <div className="h-8 flex items-center font-medium text-sm text-apleona-gray-600 px-2">
+                      Aufgabe
+                    </div>
+                  </div>
+                  {/* Zeitachse Header */}
+                  <div className="flex-1">
+                    {/* Obere Zeile: Monate mit Jahr */}
+                    <div className="flex h-8 border-b border-apleona-gray-100">
+                      {monateHeader.map((monat, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-center text-xs font-medium text-apleona-gray-700 border-r border-apleona-gray-200 bg-apleona-gray-50"
+                          style={{
+                            width: zeitskala === 'tage'
+                              ? `${monat.breite * 30}px`
+                              : zeitskala === 'wochen'
+                              ? `${Math.ceil(monat.breite / 7) * 50}px`
+                              : `${monat.breite * 3}px`
+                          }}
+                        >
+                          {monat.label}
+                        </div>
+                      ))}
+                    </div>
+                    {/* Untere Zeile: Tage/Wochen */}
+                    <div className="flex h-8">
+                      {zeitskala !== 'monate' && zeiteinheitenHeader.map((einheit, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-center text-xs text-apleona-gray-500 border-r border-apleona-gray-100"
+                          style={{ width: zeitskala === 'tage' ? '30px' : '50px' }}
+                        >
+                          {einheit.label}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -388,30 +522,31 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                   const istBalken = berechneBalken(aufgabe.startDatumIst, aufgabe.endDatumIst);
 
                   return (
-                    <div key={aufgabe.id} className="flex items-center py-2 border-b border-apleona-gray-100">
-                      <div className="w-48 flex-shrink-0 pr-4">
-                        <p className="text-sm font-medium truncate">{aufgabe.titel}</p>
+                    <div key={aufgabe.id} className="flex items-center border-b border-apleona-gray-100">
+                      {/* Fixierte Aufgaben-Spalte */}
+                      <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-10 border-r border-apleona-gray-200 py-2 px-2">
+                        <p className="text-sm font-medium truncate" title={aufgabe.titel}>{aufgabe.titel}</p>
                         <p className="text-xs text-apleona-gray-500">{aufgabe.fortschrittProzent}%</p>
                       </div>
-                      <div className="flex-1 relative h-10 bg-apleona-gray-50 rounded">
+                      {/* Balken-Bereich */}
+                      <div className="flex-1 relative h-12 bg-apleona-gray-50">
                         {/* Soll-Balken */}
                         {sollBalken.width > 0 && (
                           <div
                             className="absolute top-1 h-4 rounded bg-apleona-navy opacity-40"
-                            style={{ left: `${sollBalken.left}%`, width: `${sollBalken.width}%` }}
+                            style={{ left: `${sollBalken.left}%`, width: `${Math.max(sollBalken.width, 0.5)}%` }}
                             title={`Soll: ${formatDatum(aufgabe.startDatumSoll)} - ${formatDatum(aufgabe.endDatumSoll)}`}
                           />
                         )}
                         {/* Ist-Balken */}
                         {istBalken.width > 0 && (
                           <div
-                            className={`absolute top-5 h-4 rounded ${
+                            className={`absolute top-6 h-4 rounded ${
                               aufgabe.status === 'verzoegert' ? 'bg-status-red' : 'bg-apleona-navy'
                             }`}
-                            style={{ left: `${istBalken.left}%`, width: `${istBalken.width}%` }}
+                            style={{ left: `${istBalken.left}%`, width: `${Math.max(istBalken.width, 0.5)}%` }}
                             title={`Ist: ${formatDatum(aufgabe.startDatumIst)} - ${formatDatum(aufgabe.endDatumIst)}`}
                           >
-                            {/* Fortschritt innerhalb */}
                             <div
                               className="h-full bg-status-green rounded-l opacity-50"
                               style={{ width: `${aufgabe.fortschrittProzent}%` }}
@@ -421,11 +556,11 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                         {/* Nur Soll anzeigen wenn kein Ist */}
                         {istBalken.width === 0 && sollBalken.width > 0 && (
                           <div
-                            className={`absolute top-3 h-4 rounded ${StatusColors[aufgabe.status]}`}
-                            style={{ left: `${sollBalken.left}%`, width: `${sollBalken.width}%` }}
+                            className={`absolute top-4 h-4 rounded ${StatusColors[aufgabe.status]}`}
+                            style={{ left: `${sollBalken.left}%`, width: `${Math.max(sollBalken.width, 0.5)}%` }}
                           >
                             <div
-                              className="h-full bg-white opacity-30 rounded-l"
+                              className="h-full bg-status-green rounded-l"
                               style={{ width: `${aufgabe.fortschrittProzent}%` }}
                             />
                           </div>
