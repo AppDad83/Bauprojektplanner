@@ -377,7 +377,7 @@ const Dashboard: React.FC = () => {
           {/* Suchhinweis */}
           {suchbegriff && (
             <p className="text-sm text-apleona-gray-500 mb-4">
-              {projekte.length} von {alleProjekte.length} Projekten gefunden für "{suchbegriff}"
+              {projekte.length} von {alleProjekte.length} Projekten gefunden für &ldquo;{suchbegriff}&rdquo;
             </p>
           )}
 

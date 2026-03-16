@@ -254,19 +254,17 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
     if (!aufgabe.startDatumSoll) return null;
 
     const aufgabeStart = new Date(aufgabe.startDatumSoll);
-    let spaetestesVorgaengerEnde: Date | null = null;
 
-    aufgabe.abhaengigkeitenIds.forEach(vorgaengerId => {
-      const vorgaenger = projekt.aufgaben.find(a => a.id === vorgaengerId);
-      if (vorgaenger?.endDatumSoll) {
-        const vorgaengerEnde = new Date(vorgaenger.endDatumSoll);
-        if (!spaetestesVorgaengerEnde || vorgaengerEnde > spaetestesVorgaengerEnde) {
-          spaetestesVorgaengerEnde = vorgaengerEnde;
-        }
-      }
-    });
+    const vorgaengerEndenDaten = aufgabe.abhaengigkeitenIds
+      .map(vorgaengerId => {
+        const vorgaenger = projekt.aufgaben.find(a => a.id === vorgaengerId);
+        return vorgaenger?.endDatumSoll ? new Date(vorgaenger.endDatumSoll) : null;
+      })
+      .filter((d): d is Date => d !== null);
 
-    if (!spaetestesVorgaengerEnde) return null;
+    if (vorgaengerEndenDaten.length === 0) return null;
+
+    const spaetestesVorgaengerEnde = vorgaengerEndenDaten.reduce((a, b) => a > b ? a : b);
 
     // Konflikt: Aufgabe startet vor oder am Ende des Vorgängers
     if (aufgabeStart <= spaetestesVorgaengerEnde) {
