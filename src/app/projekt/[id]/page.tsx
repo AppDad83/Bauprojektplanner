@@ -11,7 +11,6 @@ import TabAufgaben from '@/components/projekt/TabAufgaben';
 import TabGewerke from '@/components/projekt/TabGewerke';
 import TabFachplaner from '@/components/projekt/TabFachplaner';
 import TabFachfirmen from '@/components/projekt/TabFachfirmen';
-import TabNachtraege from '@/components/projekt/TabNachtraege';
 import TabMaengel from '@/components/projekt/TabMaengel';
 import TabBudget from '@/components/projekt/TabBudget';
 import TabFee from '@/components/projekt/TabFee';
@@ -23,7 +22,6 @@ const TABS = [
   { id: 'gewerke', label: 'Gewerke' },
   { id: 'fachplaner', label: 'Fachplaner' },
   { id: 'fachfirmen', label: 'Fachfirmen' },
-  { id: 'nachtraege', label: 'Nachträge' },
   { id: 'maengel', label: 'Mängel' },
   { id: 'budget', label: 'Budget' },
   { id: 'fee', label: 'Fee' },
@@ -83,8 +81,6 @@ export default function ProjektDetail() {
         return <TabFachplaner projekt={projekt} onUpdate={handleProjektUpdate} />;
       case 'fachfirmen':
         return <TabFachfirmen projekt={projekt} onUpdate={handleProjektUpdate} />;
-      case 'nachtraege':
-        return <TabNachtraege projekt={projekt} onUpdate={handleProjektUpdate} />;
       case 'maengel':
         return <TabMaengel projekt={projekt} onUpdate={handleProjektUpdate} />;
       case 'budget':

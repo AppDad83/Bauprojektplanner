@@ -8,6 +8,7 @@ export type AufgabenStatus = 'offen' | 'in_bearbeitung' | 'erledigt' | 'verzoege
 export type MangelStatus = 'offen' | 'in_bearbeitung' | 'behoben' | 'abgenommen';
 export type NachtragsStatus = 'gestellt' | 'in_pruefung' | 'genehmigt' | 'abgelehnt' | 'teilweise_genehmigt';
 export type RechnungsTyp = 'anzahlung' | 'teilrechnung' | 'schlussrechnung';
+export type AngebotStatus = 'verschickt' | 'freigegeben' | 'beauftragt' | 'abgerechnet' | 'abgelehnt';
 export type StakeholderTyp = 'intern' | 'extern';
 
 // AHO-Leistungsphasen (fest definiert)
@@ -55,9 +56,14 @@ export interface Rechnung {
 
 export interface Angebot {
   id: string;
+  angebotsnummer: string;
   datum: string;
   betragNetto: number;
   beschreibung: string;
+  freigabestatus: AngebotStatus;
+  istNachtrag: boolean;
+  genehmigtAm?: string;
+  abgelehntAm?: string;
 }
 
 // ============================================
