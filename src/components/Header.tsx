@@ -122,9 +122,10 @@ const Header: React.FC<HeaderProps> = ({ showNavigation = true }) => {
           {/* Logo */}
           <Link href="/" className="flex items-center">
             <AppLogo width={140} height={35} />
-            <span className="ml-3 text-sm text-apleona-gray-500 hidden sm:block">
-              Bauprojektmanagement
-            </span>
+            <div className="ml-3 hidden sm:block">
+              <span className="text-sm text-apleona-gray-500">Bauprojektmanagement</span>
+              <span className="text-xs text-apleona-gray-400 ml-2">v0.2.0</span>
+            </div>
           </Link>
 
           {/* Navigation */}

@@ -161,6 +161,11 @@ const WelcomeScreen: React.FC = () => {
           Die Daten werden lokal in einer JSON-Datei gespeichert.<br />
           Legen Sie die Datei auf SharePoint ab, um sie mit anderen zu teilen.
         </p>
+
+        {/* Version */}
+        <p className="mt-4 text-xs text-apleona-gray-400 text-center">
+          Version 0.2.0
+        </p>
       </div>
     </div>
   );
