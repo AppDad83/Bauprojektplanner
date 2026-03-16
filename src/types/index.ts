@@ -1,5 +1,5 @@
 // ============================================
-// APLEONA BAUPROJEKTMANAGEMENT - DATENMODELL
+// BAUPROJEKTMANAGEMENT - DATENMODELL
 // ============================================
 
 // Basis-Typen

@@ -1,6 +1,6 @@
 {
-  "name": "Apleona Bauprojektmanagement",
-  "short_name": "Apleona PM",
+  "name": "Bauprojektmanagement",
+  "short_name": "BauPM",
   "description": "Projektsteuerung und -management für Bauprojekte",
   "start_url": "/",
   "display": "standalone",

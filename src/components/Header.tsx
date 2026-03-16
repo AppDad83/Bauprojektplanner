@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import ApeleonaLogo from './ApeleonaLogo';
+import AppLogo from './AppLogo';
 import { useData } from '@/lib/DataContext';
 import { Projekt } from '@/types';
 
@@ -121,7 +121,7 @@ const Header: React.FC<HeaderProps> = ({ showNavigation = true }) => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <ApeleonaLogo width={140} height={35} />
+            <AppLogo width={140} height={35} />
             <span className="ml-3 text-sm text-apleona-gray-500 hidden sm:block">
               Bauprojektmanagement
             </span>

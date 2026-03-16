@@ -6,7 +6,7 @@ import { DataProvider } from '@/lib/DataContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Apleona Bauprojektmanagement',
+  title: 'Bauprojektmanagement',
   description: 'Projektsteuerung und -management für Bauprojekte',
   manifest: '/manifest.json',
   icons: {

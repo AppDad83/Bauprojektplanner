@@ -215,7 +215,7 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
               />
             </div>
             <div>
-              <label className="label">Apleona-Projektnummer</label>
+              <label className="label">Interne Projektnummer</label>
               <input
                 type="text"
                 value={formData.projektnummerApleona}
@@ -360,7 +360,7 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
               <p className="font-medium">{projekt.projektnummerEigentuemer || '-'}</p>
             </div>
             <div>
-              <p className="text-sm text-apleona-gray-500">Apleona-Projektnummer</p>
+              <p className="text-sm text-apleona-gray-500">Interne Projektnummer</p>
               <p className="font-medium">{projekt.projektnummerApleona || '-'}</p>
             </div>
             <div>

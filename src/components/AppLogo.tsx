@@ -2,13 +2,13 @@
 
 import React from 'react';
 
-interface ApeleonaLogoProps {
+interface AppLogoProps {
   className?: string;
   width?: number;
   height?: number;
 }
 
-const ApeleonaLogo: React.FC<ApeleonaLogoProps> = ({
+const AppLogo: React.FC<AppLogoProps> = ({
   className = '',
   width = 160,
   height = 40
@@ -16,25 +16,25 @@ const ApeleonaLogo: React.FC<ApeleonaLogoProps> = ({
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 180 50"
+      viewBox="0 0 200 50"
       width={width}
       height={height}
       className={className}
-      aria-label="Apleona Logo"
+      aria-label="BauPM Logo"
     >
       <text
         x="5"
         y="35"
         fontFamily="Arial, Helvetica, sans-serif"
-        fontSize="32"
+        fontSize="28"
         fontWeight="bold"
-        fill="#E30613"
-        letterSpacing="2"
+        fill="#002D5A"
+        letterSpacing="1"
       >
-        APLEONA
+        BauPM
       </text>
     </svg>
   );
 };
 
-export default ApeleonaLogo;
+export default AppLogo;

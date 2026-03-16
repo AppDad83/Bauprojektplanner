@@ -8,11 +8,11 @@ export const exportProjektZuExcel = (projekt: Projekt) => {
 
   // 1. Projektübersicht
   const uebersichtDaten = [
-    ['APLEONA BAUPROJEKTMANAGEMENT - PROJEKTDOKUMENTATION'],
+    ['BAUPROJEKTMANAGEMENT - PROJEKTDOKUMENTATION'],
     [''],
     ['Projektname', projekt.name],
     ['Projektnummer (Eigentümer)', projekt.projektnummerEigentuemer || '-'],
-    ['Apleona-Projektnummer', projekt.projektnummerApleona || '-'],
+    ['Interne Projektnummer', projekt.projektnummerApleona || '-'],
     ['Liegenschaft/Adresse', projekt.liegenschaftAdresse || '-'],
     ['Eigentümer', projekt.eigentuemer.join(', ') || '-'],
     ['Status', projekt.status],

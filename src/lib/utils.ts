@@ -349,5 +349,5 @@ export const getTimestamp = (): string => {
 
 // Dateiname für JSON-Export
 export const getJsonDateiname = (): string => {
-  return `apleona_pm_${getTimestamp()}.json`;
+  return `baupm_${getTimestamp()}.json`;
 };

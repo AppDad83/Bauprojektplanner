@@ -174,7 +174,7 @@ export const useData = (): DataContextType => {
 
 // Helper: Timestamp aus Dateiname extrahieren
 function extractTimestampFromFilename(filename: string): Date | null {
-  const match = filename.match(/apleona_pm_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})\.json/);
+  const match = filename.match(/(?:apleona_pm|baupm)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})\.json/);
   if (!match) return null;
 
   const [datePart, timePart] = match[1].split('_');

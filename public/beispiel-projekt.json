@@ -6,7 +6,7 @@
     {
       "id": "proj-001",
       "projektnummerEigentuemer": "EIG-2026-001",
-      "projektnummerApleona": "APL-2026-0042",
+      "projektnummerApleona": "INT-2026-0042",
       "name": "Sanierung Bürogebäude Hauptstraße 15",
       "beschreibung": "Kernsanierung des 5-stöckigen Bürogebäudes inkl. TGA-Erneuerung",
       "liegenschaftAdresse": "Hauptstraße 15, 60313 Frankfurt am Main",
@@ -125,10 +125,10 @@
         {
           "id": "stak-002",
           "name": "Sandra Weber",
-          "firma": "Apleona Real Estate",
+          "firma": "Projektsteuerung GmbH",
           "rolle": "Projektleiterin",
           "telefon": "+49 69 98765432",
-          "email": "s.weber@apleona.com",
+          "email": "s.weber@beispiel.de",
           "typ": "intern"
         }
       ],

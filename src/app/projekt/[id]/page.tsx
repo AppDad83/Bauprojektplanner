@@ -114,7 +114,7 @@ export default function ProjektDetail() {
                 <h1 className="text-2xl font-bold text-apleona-gray-900">{projekt.name}</h1>
               </div>
               <p className="text-apleona-gray-600 mt-1">
-                {projekt.projektnummerApleona && `Apleona: ${projekt.projektnummerApleona} | `}
+                {projekt.projektnummerApleona && `${projekt.projektnummerApleona} | `}
                 {projekt.liegenschaftAdresse}
               </p>
             </div>

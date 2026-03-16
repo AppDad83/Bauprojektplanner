@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import ApeleonaLogo from './ApeleonaLogo';
+import AppLogo from './AppLogo';
 import { useData } from '@/lib/DataContext';
 
 const WelcomeScreen: React.FC = () => {
@@ -39,14 +39,14 @@ const WelcomeScreen: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <ApeleonaLogo width={200} height={50} />
+          <AppLogo width={200} height={50} />
         </div>
 
         <h1 className="text-2xl font-bold text-apleona-gray-900 text-center mb-2">
           Bauprojektmanagement
         </h1>
         <p className="text-apleona-gray-600 text-center mb-8">
-          Projektsteuerung für Apleona Real Estate
+          Projektsteuerung und -management
         </p>
 
         {/* Error Message */}
