@@ -280,6 +280,30 @@ const Header: React.FC<HeaderProps> = ({ showNavigation = true }) => {
                 Speichern
               </button>
             )}
+
+            {/* Logout Button */}
+            <button
+              onClick={async () => {
+                await fetch('/api/auth', { method: 'DELETE' });
+                window.location.href = '/login';
+              }}
+              className="p-2 text-apleona-gray-500 hover:text-apleona-red rounded-lg hover:bg-apleona-gray-100 transition-colors"
+              title="Abmelden"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
