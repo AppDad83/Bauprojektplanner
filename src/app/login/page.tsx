@@ -128,7 +128,7 @@ export default function LoginPage() {
 
         {/* Version */}
         <p className="mt-8 text-xs text-apleona-gray-400 text-center">
-          Version 0.2.0
+          Version 0.3.0
         </p>
       </div>
     </div>
