@@ -19,11 +19,11 @@ import TabStakeholder from '@/components/projekt/TabStakeholder';
 const TABS = [
   { id: 'uebersicht', label: 'Übersicht' },
   { id: 'aufgaben', label: 'Aufgaben & Gantt' },
+  { id: 'budget', label: 'Budget' },
   { id: 'gewerke', label: 'Gewerke' },
   { id: 'fachplaner', label: 'Fachplaner' },
   { id: 'fachfirmen', label: 'Fachfirmen' },
   { id: 'maengel', label: 'Mängel' },
-  { id: 'budget', label: 'Budget' },
   { id: 'fee', label: 'Fee' },
   { id: 'stakeholder', label: 'Stakeholder' },
 ];
