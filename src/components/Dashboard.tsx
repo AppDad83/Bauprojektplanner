@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useData } from '@/lib/DataContext';
-import { Projekt, AmpelStatus } from '@/types';
+import { Projekt, AmpelStatus, ProjektStatus, PROJEKT_STATUS_CONFIG } from '@/types';
 import {
   formatDatum,
   formatWaehrung,
@@ -23,6 +23,15 @@ const AmpelBadge: React.FC<{ status: AmpelStatus }> = ({ status }) => {
 
   return (
     <span className={`inline-block w-4 h-4 rounded-full ${colors[status]}`} />
+  );
+};
+
+const ProjektStatusBadge: React.FC<{ status: ProjektStatus }> = ({ status }) => {
+  const config = PROJEKT_STATUS_CONFIG[status];
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-semibold ${config?.color || 'bg-status-gray'} ${config?.textColor || 'text-gray-800'}`}>
+      {config?.label || status}
+    </span>
   );
 };
 
@@ -428,7 +437,7 @@ const Dashboard: React.FC = () => {
                     return (
                       <tr key={projekt.id} className="hover:bg-apleona-gray-50">
                         <td className="px-4 py-4">
-                          <AmpelBadge status={projekt.status} />
+                          <ProjektStatusBadge status={projekt.status} />
                         </td>
                         <td className="px-4 py-4">
                           <Link

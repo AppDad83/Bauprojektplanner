@@ -229,7 +229,7 @@ export const erstelleLeeresProjekt = (): Projekt => {
     beschreibung: '',
     liegenschaftAdresse: '',
     eigentuemer: [],
-    status: 'gruen',
+    status: 'geplant',
     aktuellePhase: AHO_PHASEN[0],
     projektbudgetHistorie: [],
     projektbudgetFreigegeben: 0,

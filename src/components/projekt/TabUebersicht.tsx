@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Projekt, AmpelStatus, AHO_PHASEN, BudgetHistorieEintrag } from '@/types';
+import { Projekt, ProjektStatus, AHO_PHASEN, BudgetHistorieEintrag, PROJEKT_STATUS_CONFIG } from '@/types';
 import { formatDatum, formatWaehrung, generateId, berechneBudgetUebersicht } from '@/lib/utils';
 import { exportProjektZuExcel } from '@/lib/excelExport';
 
@@ -132,11 +132,11 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
         <div className="card">
           <p className="text-sm text-apleona-gray-600">Projektstatus</p>
           <div className="flex items-center mt-2">
-            <span className={`w-6 h-6 rounded-full ${
-              projekt.status === 'gruen' ? 'bg-status-green' :
-              projekt.status === 'gelb' ? 'bg-status-yellow' : 'bg-status-red'
-            }`} />
-            <span className="ml-2 font-semibold capitalize">{projekt.status}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+              PROJEKT_STATUS_CONFIG[projekt.status]?.color || 'bg-status-gray'
+            } ${PROJEKT_STATUS_CONFIG[projekt.status]?.textColor || 'text-gray-800'}`}>
+              {PROJEKT_STATUS_CONFIG[projekt.status]?.label || projekt.status}
+            </span>
           </div>
         </div>
         <div className="card">
@@ -233,15 +233,17 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
               />
             </div>
             <div>
-              <label className="label">Status</label>
+              <label className="label">Projektstatus</label>
               <select
                 value={formData.status}
-                onChange={e => setFormData({ ...formData, status: e.target.value as AmpelStatus })}
+                onChange={e => setFormData({ ...formData, status: e.target.value as ProjektStatus })}
                 className="input-field"
               >
-                <option value="gruen">Grün</option>
-                <option value="gelb">Gelb</option>
-                <option value="rot">Rot</option>
+                <option value="geplant">Geplant</option>
+                <option value="beauftragt">Beauftragt</option>
+                <option value="abgelehnt">Abgelehnt</option>
+                <option value="abgeschlossen">Abgeschlossen</option>
+                <option value="abgerechnet">Abgerechnet</option>
               </select>
             </div>
             <div>
@@ -348,6 +350,39 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
                 rows={3}
               />
             </div>
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <h3 className="font-semibold text-apleona-gray-700 mb-3">Regelungen</h3>
+            </div>
+            <div className="md:col-span-2">
+              <label className="label">Freigabe-Regelung</label>
+              <textarea
+                value={formData.freigabeRegelung || ''}
+                onChange={e => setFormData({ ...formData, freigabeRegelung: e.target.value })}
+                className="input-field"
+                rows={2}
+                placeholder="z.B. Freigabegrenzen, Genehmigungsprozess..."
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="label">Rechnungsregelung</label>
+              <textarea
+                value={formData.rechnungsRegelung || ''}
+                onChange={e => setFormData({ ...formData, rechnungsRegelung: e.target.value })}
+                className="input-field"
+                rows={2}
+                placeholder="z.B. Zahlungsfristen, Rechnungsadresse..."
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="label">Fee-Regelung</label>
+              <textarea
+                value={formData.feeRegelung || ''}
+                onChange={e => setFormData({ ...formData, feeRegelung: e.target.value })}
+                className="input-field"
+                rows={2}
+                placeholder="z.B. Fee-Basis, Abrechnungsmodalitäten..."
+              />
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -403,6 +438,25 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
             )}
           </div>
         )}
+      </div>
+
+      {/* Regelungen */}
+      <div className="card">
+        <h2 className="text-lg font-semibold mb-4">Regelungen</h2>
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+          <div>
+            <p className="text-sm text-apleona-gray-500">Freigabe-Regelung</p>
+            <p className="font-medium whitespace-pre-wrap">{projekt.freigabeRegelung || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-apleona-gray-500">Rechnungsregelung</p>
+            <p className="font-medium whitespace-pre-wrap">{projekt.rechnungsRegelung || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-apleona-gray-500">Fee-Regelung</p>
+            <p className="font-medium whitespace-pre-wrap">{projekt.feeRegelung || '-'}</p>
+          </div>
+        </div>
       </div>
 
       {/* Budget-Historie */}

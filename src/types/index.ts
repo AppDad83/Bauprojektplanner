@@ -4,7 +4,17 @@
 
 // Basis-Typen
 export type AmpelStatus = 'gruen' | 'gelb' | 'rot';
+export type ProjektStatus = 'geplant' | 'beauftragt' | 'abgelehnt' | 'abgeschlossen' | 'abgerechnet';
 export type AufgabenStatus = 'offen' | 'in_bearbeitung' | 'erledigt' | 'verzoegert';
+
+// Projektstatus-Labels und Farben
+export const PROJEKT_STATUS_CONFIG = {
+  geplant: { label: 'Geplant', color: 'bg-status-yellow', textColor: 'text-yellow-800' },
+  beauftragt: { label: 'Beauftragt', color: 'bg-status-light-green', textColor: 'text-green-800' },
+  abgelehnt: { label: 'Abgelehnt', color: 'bg-status-gray', textColor: 'text-gray-800' },
+  abgeschlossen: { label: 'Abgeschlossen', color: 'bg-status-dark-green', textColor: 'text-white' },
+  abgerechnet: { label: 'Abgerechnet', color: 'bg-status-light-blue', textColor: 'text-status-dark-blue' },
+} as const;
 export type MangelStatus = 'offen' | 'in_bearbeitung' | 'behoben' | 'abgenommen';
 export type NachtragsStatus = 'gestellt' | 'in_pruefung' | 'genehmigt' | 'abgelehnt' | 'teilweise_genehmigt';
 export type RechnungsTyp = 'anzahlung' | 'teilrechnung' | 'schlussrechnung';
@@ -265,7 +275,7 @@ export interface Projekt {
   beschreibung?: string;
   liegenschaftAdresse: string;
   eigentuemer: string[]; // Kann mehrere Personen sein
-  status: AmpelStatus;
+  status: ProjektStatus;
   aktuellePhase: AHOPhase;
   startDatumSoll?: string;
   startDatumIst?: string;
@@ -289,6 +299,11 @@ export interface Projekt {
   nachtraege: Nachtrag[];
   maengel: Mangel[];
   feeRechnungen: FeeRechnung[];
+
+  // Regelungen
+  freigabeRegelung?: string;
+  rechnungsRegelung?: string;
+  feeRegelung?: string;
 
   // Meta
   notizen?: string;

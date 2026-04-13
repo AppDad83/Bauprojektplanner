@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useData } from '@/lib/DataContext';
-import { Projekt, AmpelStatus, AHO_PHASEN } from '@/types';
+import { Projekt, PROJEKT_STATUS_CONFIG } from '@/types';
 import Header from '@/components/Header';
 import TabUebersicht from '@/components/projekt/TabUebersicht';
 import TabAufgaben from '@/components/projekt/TabAufgaben';
@@ -107,10 +107,11 @@ export default function ProjektDetail() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center">
-                <span className={`w-4 h-4 rounded-full mr-3 ${
-                  projekt.status === 'gruen' ? 'bg-status-green' :
-                  projekt.status === 'gelb' ? 'bg-status-yellow' : 'bg-status-red'
-                }`} />
+                <span className={`px-2 py-1 rounded text-xs font-semibold mr-3 ${
+                  PROJEKT_STATUS_CONFIG[projekt.status]?.color || 'bg-status-gray'
+                } ${PROJEKT_STATUS_CONFIG[projekt.status]?.textColor || 'text-gray-800'}`}>
+                  {PROJEKT_STATUS_CONFIG[projekt.status]?.label || projekt.status}
+                </span>
                 <h1 className="text-2xl font-bold text-apleona-gray-900">{projekt.name}</h1>
               </div>
               <p className="text-apleona-gray-600 mt-1">

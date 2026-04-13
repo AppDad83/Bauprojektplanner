@@ -1,8 +1,33 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { AppDaten, Projekt } from '@/types';
+import { AppDaten, Projekt, ProjektStatus } from '@/types';
 import { erstelleLeereAppDaten, getJsonDateiname, generateId } from './utils';
+
+// Migration: Alte Status-Werte (gruen/gelb/rot) auf neue konvertieren
+function migriereProjektStatus(daten: AppDaten): AppDaten {
+  const alteStatusMap: Record<string, ProjektStatus> = {
+    'gruen': 'beauftragt',
+    'gelb': 'geplant',
+    'rot': 'geplant'
+  };
+
+  const gueltigeStatus: ProjektStatus[] = ['geplant', 'beauftragt', 'abgelehnt', 'abgeschlossen', 'abgerechnet'];
+
+  return {
+    ...daten,
+    projekte: daten.projekte.map(projekt => {
+      const status = projekt.status as string;
+      if (!gueltigeStatus.includes(status as ProjektStatus)) {
+        return {
+          ...projekt,
+          status: alteStatusMap[status] || 'geplant'
+        };
+      }
+      return projekt;
+    })
+  };
+}
 
 interface DataContextType {
   daten: AppDaten | null;
@@ -47,6 +72,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const content = e.target?.result as string;
           const parsed = JSON.parse(content) as AppDaten;
 
+          // Migration: Alte Status-Werte konvertieren
+          const migriert = migriereProjektStatus(parsed);
+
           // Versionswarnung prüfen
           if (letztesSpeicherdatum) {
             const dateiTimestamp = extractTimestampFromFilename(file.name);
@@ -61,7 +89,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
           }
 
-          setDaten(parsed);
+          setDaten(migriert);
           setIstGeladen(true);
           resolve();
         } catch (error) {

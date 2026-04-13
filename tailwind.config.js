@@ -5,6 +5,18 @@ module.exports = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    'bg-status-yellow',
+    'bg-status-light-green',
+    'bg-status-gray',
+    'bg-status-dark-green',
+    'bg-status-light-blue',
+    'text-yellow-800',
+    'text-green-800',
+    'text-gray-800',
+    'text-white',
+    'text-status-dark-blue',
+  ],
   theme: {
     extend: {
       colors: {
@@ -27,6 +39,11 @@ module.exports = {
         'status-green': '#28A745',
         'status-yellow': '#FFC107',
         'status-red': '#DC3545',
+        'status-light-green': '#90EE90',
+        'status-dark-green': '#1B5E20',
+        'status-dark-blue': '#1A237E',
+        'status-light-blue': '#BBDEFB',
+        'status-gray': '#9E9E9E',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
