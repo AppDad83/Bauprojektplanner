@@ -311,7 +311,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Modal */}
       {zeigeModal && (
-        <div className="modal-overlay" onClick={() => setZeigeModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeModal(false)}>
           <div className="modal-content p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">
               {editMangel ? `Mangel #${editMangel.mangelnummer} bearbeiten` : `Neuer Mangel #${naechsteMangelnummer}`}
@@ -409,7 +409,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Foto-Modal mit Übersicht */}
       {zeigeForoModal && !fullscreenFoto && (
-        <div className="modal-overlay" onClick={() => setZeigeFotoModal(null)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeFotoModal(null)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Fotos</h2>
             <p className="text-sm text-apleona-gray-500 mb-4">Klicken Sie auf ein Foto für die Vollbildansicht</p>

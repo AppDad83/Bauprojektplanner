@@ -564,7 +564,7 @@ const TabUebersicht: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Budget-Modal */}
       {zeigeBudgetModal && (
-        <div className="modal-overlay" onClick={() => setZeigeBudgetModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeBudgetModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Zusätzliches Budget hinzufügen</h2>
             <p className="text-sm text-apleona-gray-500 mb-4">

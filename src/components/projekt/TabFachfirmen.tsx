@@ -613,7 +613,7 @@ const TabFachfirmen: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Fachfirma Modal */}
       {zeigeModal && (
-        <div className="modal-overlay" onClick={() => setZeigeModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeModal(false)}>
           <div className="modal-content p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">{editFachfirma ? 'Fachfirma bearbeiten' : 'Neue Fachfirma'}</h2>
 
@@ -687,7 +687,7 @@ const TabFachfirmen: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Rechnung Modal */}
       {zeigeRechnungModal && (
-        <div className="modal-overlay" onClick={() => setZeigeRechnungModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeRechnungModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Neue Rechnung</h2>
             <div className="space-y-4">
@@ -730,7 +730,7 @@ const TabFachfirmen: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Angebot Modal */}
       {zeigeAngebotModal && (
-        <div className="modal-overlay" onClick={() => setZeigeAngebotModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeAngebotModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">
               {editAngebot ? 'Angebot bearbeiten' : (angebotForm.istNachtrag ? 'Neuer Nachtrag' : 'Neues Angebot')}

@@ -266,7 +266,7 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Fee-Ändern Modal */}
       {zeigeFeeModal && (
-        <div className="modal-overlay" onClick={() => setZeigeFeeModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeFeeModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Fee-Satz ändern</h2>
             <div className="space-y-4">
@@ -301,7 +301,7 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Fee-Rechnung erstellen Modal */}
       {zeigeModal && (
-        <div className="modal-overlay" onClick={() => setZeigeModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeModal(false)}>
           <div className="modal-content p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Neue Fee-Rechnung erstellen</h2>
 

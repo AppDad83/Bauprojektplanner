@@ -497,7 +497,7 @@ const Dashboard: React.FC = () => {
 
       {/* Modal: Neues Projekt */}
       {zeigeProjektModal && (
-        <div className="modal-overlay" onClick={() => setZeigeProjektModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeProjektModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Neues Projekt erstellen</h2>
             <p className="text-apleona-gray-600 mb-6">
@@ -523,7 +523,7 @@ const Dashboard: React.FC = () => {
 
       {/* Modal: Projekt kopieren */}
       {zeigeKopieModal && (
-        <div className="modal-overlay" onClick={() => setZeigeKopieModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeKopieModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">Projekt als Vorlage kopieren</h2>
             <p className="text-apleona-gray-600 mb-4">

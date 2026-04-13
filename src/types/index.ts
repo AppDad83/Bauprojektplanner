@@ -57,11 +57,25 @@ export interface Rechnung {
   datum: string;
   betragNetto: number;
   typ: RechnungsTyp;
-  geprueft: boolean;
-  freigegeben: boolean;
+  geprueft: boolean; // Legacy
+  geprueftDatum?: string;
+  freigegeben: boolean; // Legacy
+  bezahltDatum?: string;
   bereitsInFeeAbgerechnet: boolean;
   sicherheitseinbehaltNetto?: number; // Nur für Fachfirmen
+  info?: string;
   notizen?: string;
+}
+
+// Abnahme für Fachplaner
+export type AbnahmeArt = 'teilabnahme' | 'endabnahme';
+
+export interface FachplanerAbnahme {
+  id: string;
+  abnahmeart: AbnahmeArt;
+  termin: string;
+  leistungen?: string;
+  maengelIds: string[]; // Verknüpfung zu Projekt-Mängeln
 }
 
 export interface Angebot {
@@ -134,6 +148,7 @@ export interface BaseBeteiligter {
 
 export interface Fachplaner extends BaseBeteiligter {
   typ: 'fachplaner';
+  abnahmen?: FachplanerAbnahme[];
 }
 
 export interface Fachfirma extends BaseBeteiligter {

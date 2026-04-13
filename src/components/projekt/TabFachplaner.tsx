@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Projekt, Fachplaner, Rechnung, Angebot, RechnungsTyp, AngebotStatus } from '@/types';
+import { Projekt, Fachplaner, Rechnung, Angebot, RechnungsTyp, AngebotStatus, FachplanerAbnahme, AbnahmeArt } from '@/types';
 import { formatDatum, formatWaehrung, generateId } from '@/lib/utils';
 
 interface Props {
@@ -25,14 +25,23 @@ const AngebotStatusColors: Record<AngebotStatus, string> = {
   abgelehnt: 'bg-red-100 text-red-800'
 };
 
+const RechnungsTypLabels: Record<RechnungsTyp, string> = {
+  anzahlung: 'Anzahlung',
+  teilrechnung: 'Abschlagrechnung',
+  schlussrechnung: 'Schlussrechnung'
+};
+
 const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [zeigeModal, setZeigeModal] = useState(false);
   const [editFachplaner, setEditFachplaner] = useState<Fachplaner | null>(null);
   const [zeigeRechnungModal, setZeigeRechnungModal] = useState(false);
   const [zeigeAngebotModal, setZeigeAngebotModal] = useState(false);
+  const [zeigeAbnahmeModal, setZeigeAbnahmeModal] = useState(false);
   const [aktiverFachplanerId, setAktiverFachplanerId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editAngebot, setEditAngebot] = useState<Angebot | null>(null);
+  const [editRechnung, setEditRechnung] = useState<Rechnung | null>(null);
+  const [editAbnahme, setEditAbnahme] = useState<FachplanerAbnahme | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,7 +50,6 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
     telefon: '',
     email: '',
     gewerkId: '',
-    budgetGenehmigt: 0,
     notizen: ''
   });
 
@@ -49,7 +57,17 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
     rechnungsnummer: '',
     datum: '',
     betragNetto: 0,
-    typ: 'teilrechnung' as RechnungsTyp
+    typ: 'teilrechnung' as RechnungsTyp,
+    geprueftDatum: '',
+    bezahltDatum: '',
+    info: ''
+  });
+
+  const [abnahmeForm, setAbnahmeForm] = useState({
+    abnahmeart: 'teilabnahme' as AbnahmeArt,
+    termin: '',
+    leistungen: '',
+    maengelIds: [] as string[]
   });
 
   const [angebotForm, setAngebotForm] = useState({
@@ -65,7 +83,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
     setEditFachplaner(null);
     setFormData({
       name: '', firma: '', ansprechpartner: '', telefon: '', email: '',
-      gewerkId: '', budgetGenehmigt: 0, notizen: ''
+      gewerkId: '', notizen: ''
     });
     setZeigeModal(true);
   };
@@ -79,7 +97,6 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
       telefon: fp.kontakt.telefon || '',
       email: fp.kontakt.email || '',
       gewerkId: fp.gewerkId || '',
-      budgetGenehmigt: fp.budgetGenehmigt,
       notizen: fp.notizen || ''
     });
     setZeigeModal(true);
@@ -101,7 +118,6 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
               firma: formData.firma,
               kontakt,
               gewerkId: formData.gewerkId || undefined,
-              budgetGenehmigt: formData.budgetGenehmigt,
               notizen: formData.notizen || undefined
             }
           : fp
@@ -117,9 +133,10 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
         gewerkId: formData.gewerkId || undefined,
         angebote: [],
         vergabeEmpfehlung: {},
-        budgetGenehmigt: formData.budgetGenehmigt,
+        budgetGenehmigt: 0, // Wird aus Angeboten berechnet
         budgetHistorie: [],
         rechnungen: [],
+        abnahmen: [],
         notizen: formData.notizen || undefined
       };
       onUpdate({ ...projekt, fachplaner: [...projekt.fachplaner, neu] });
@@ -135,42 +152,68 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
 
   const handleRechnungHinzufuegen = (fachplanerId: string) => {
     setAktiverFachplanerId(fachplanerId);
-    setRechnungForm({ rechnungsnummer: '', datum: '', betragNetto: 0, typ: 'teilrechnung' });
+    setEditRechnung(null);
+    setRechnungForm({
+      rechnungsnummer: '',
+      datum: '',
+      betragNetto: 0,
+      typ: 'teilrechnung',
+      geprueftDatum: '',
+      bezahltDatum: '',
+      info: ''
+    });
+    setZeigeRechnungModal(true);
+  };
+
+  const handleRechnungEdit = (fachplanerId: string, rechnung: Rechnung) => {
+    setAktiverFachplanerId(fachplanerId);
+    setEditRechnung(rechnung);
+    setRechnungForm({
+      rechnungsnummer: rechnung.rechnungsnummer,
+      datum: rechnung.datum,
+      betragNetto: rechnung.betragNetto,
+      typ: rechnung.typ,
+      geprueftDatum: rechnung.geprueftDatum || '',
+      bezahltDatum: rechnung.bezahltDatum || '',
+      info: rechnung.info || ''
+    });
     setZeigeRechnungModal(true);
   };
 
   const handleRechnungSave = () => {
     if (!aktiverFachplanerId) return;
 
-    const neueRechnung: Rechnung = {
-      id: generateId(),
+    const rechnungData: Rechnung = {
+      id: editRechnung?.id || generateId(),
       rechnungsnummer: rechnungForm.rechnungsnummer,
       datum: rechnungForm.datum,
       betragNetto: rechnungForm.betragNetto,
       typ: rechnungForm.typ,
-      geprueft: false,
-      freigegeben: false,
-      bereitsInFeeAbgerechnet: false
+      geprueft: !!rechnungForm.geprueftDatum,
+      geprueftDatum: rechnungForm.geprueftDatum || undefined,
+      freigegeben: !!rechnungForm.bezahltDatum,
+      bezahltDatum: rechnungForm.bezahltDatum || undefined,
+      bereitsInFeeAbgerechnet: editRechnung?.bereitsInFeeAbgerechnet || false,
+      info: rechnungForm.info || undefined
     };
 
-    const aktualisiert = projekt.fachplaner.map(fp =>
-      fp.id === aktiverFachplanerId
-        ? { ...fp, rechnungen: [...fp.rechnungen, neueRechnung] }
-        : fp
-    );
+    const aktualisiert = projekt.fachplaner.map(fp => {
+      if (fp.id !== aktiverFachplanerId) return fp;
+      if (editRechnung) {
+        return { ...fp, rechnungen: fp.rechnungen.map(r => r.id === editRechnung.id ? rechnungData : r) };
+      } else {
+        return { ...fp, rechnungen: [...fp.rechnungen, rechnungData] };
+      }
+    });
     onUpdate({ ...projekt, fachplaner: aktualisiert });
     setZeigeRechnungModal(false);
   };
 
-  const toggleRechnungStatus = (fachplanerId: string, rechnungId: string, feld: 'geprueft' | 'freigegeben') => {
+  const handleRechnungDelete = (fachplanerId: string, rechnungId: string) => {
+    if (!window.confirm('Rechnung wirklich löschen?')) return;
     const aktualisiert = projekt.fachplaner.map(fp => {
       if (fp.id !== fachplanerId) return fp;
-      return {
-        ...fp,
-        rechnungen: fp.rechnungen.map(r =>
-          r.id === rechnungId ? { ...r, [feld]: !r[feld] } : r
-        )
-      };
+      return { ...fp, rechnungen: fp.rechnungen.filter(r => r.id !== rechnungId) };
     });
     onUpdate({ ...projekt, fachplaner: aktualisiert });
   };
@@ -273,12 +316,82 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
     onUpdate({ ...projekt, fachplaner: aktualisiert });
   };
 
-  // Budget mit Nachträgen berechnen
+  // Abnahme Funktionen
+  const handleAbnahmeHinzufuegen = (fachplanerId: string) => {
+    setAktiverFachplanerId(fachplanerId);
+    setEditAbnahme(null);
+    setAbnahmeForm({
+      abnahmeart: 'teilabnahme',
+      termin: '',
+      leistungen: '',
+      maengelIds: []
+    });
+    setZeigeAbnahmeModal(true);
+  };
+
+  const handleAbnahmeEdit = (fachplanerId: string, abnahme: FachplanerAbnahme) => {
+    setAktiverFachplanerId(fachplanerId);
+    setEditAbnahme(abnahme);
+    setAbnahmeForm({
+      abnahmeart: abnahme.abnahmeart,
+      termin: abnahme.termin,
+      leistungen: abnahme.leistungen || '',
+      maengelIds: abnahme.maengelIds || []
+    });
+    setZeigeAbnahmeModal(true);
+  };
+
+  const handleAbnahmeSave = () => {
+    if (!aktiverFachplanerId) return;
+
+    const abnahmeData: FachplanerAbnahme = {
+      id: editAbnahme?.id || generateId(),
+      abnahmeart: abnahmeForm.abnahmeart,
+      termin: abnahmeForm.termin,
+      leistungen: abnahmeForm.leistungen || undefined,
+      maengelIds: abnahmeForm.maengelIds
+    };
+
+    const aktualisiert = projekt.fachplaner.map(fp => {
+      if (fp.id !== aktiverFachplanerId) return fp;
+      const abnahmen = fp.abnahmen || [];
+      if (editAbnahme) {
+        return { ...fp, abnahmen: abnahmen.map(a => a.id === editAbnahme.id ? abnahmeData : a) };
+      } else {
+        return { ...fp, abnahmen: [...abnahmen, abnahmeData] };
+      }
+    });
+    onUpdate({ ...projekt, fachplaner: aktualisiert });
+    setZeigeAbnahmeModal(false);
+  };
+
+  const handleAbnahmeDelete = (fachplanerId: string, abnahmeId: string) => {
+    if (!window.confirm('Abnahme wirklich löschen?')) return;
+    const aktualisiert = projekt.fachplaner.map(fp => {
+      if (fp.id !== fachplanerId) return fp;
+      return { ...fp, abnahmen: (fp.abnahmen || []).filter(a => a.id !== abnahmeId) };
+    });
+    onUpdate({ ...projekt, fachplaner: aktualisiert });
+  };
+
+  const toggleMangelSelection = (mangelId: string) => {
+    setAbnahmeForm(prev => ({
+      ...prev,
+      maengelIds: prev.maengelIds.includes(mangelId)
+        ? prev.maengelIds.filter(id => id !== mangelId)
+        : [...prev.maengelIds, mangelId]
+    }));
+  };
+
+  // Budget aus freigegebenen Angeboten + Nachträgen berechnen
   const berechneEffektivesBudget = (fp: Fachplaner): number => {
+    const summeFreigegebeneHauptangebote = fp.angebote
+      .filter(a => !a.istNachtrag && (a.freigabestatus === 'freigegeben' || a.freigabestatus === 'beauftragt'))
+      .reduce((sum, a) => sum + a.betragNetto, 0);
     const summeBeauftragteNachtraege = fp.angebote
       .filter(a => a.istNachtrag && a.freigabestatus === 'beauftragt')
       .reduce((sum, a) => sum + a.betragNetto, 0);
-    return fp.budgetGenehmigt + summeBeauftragteNachtraege;
+    return summeFreigegebeneHauptangebote + summeBeauftragteNachtraege;
   };
 
   const berechneAuslastung = (fp: Fachplaner) => {
@@ -551,45 +664,129 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
                         <table className="min-w-full divide-y divide-apleona-gray-200">
                           <thead className="bg-apleona-gray-50">
                             <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Nr.</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Datum</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Typ</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Betrag netto</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Re-Nr.</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Re-Datum</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Rechnungsart</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Zahlbetrag (€ netto)</th>
                               <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Geprüft</th>
-                              <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Freigegeben</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Bezahlt</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Info</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Aktionen</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-apleona-gray-200">
                             {fp.rechnungen.map(r => (
-                              <tr key={r.id} className={r.typ === 'schlussrechnung' ? 'schlussrechnung' : ''}>
-                                <td className="px-3 py-2 text-sm">{r.rechnungsnummer}</td>
+                              <tr key={r.id} className={r.typ === 'schlussrechnung' ? 'bg-amber-50' : ''}>
+                                <td className="px-3 py-2 text-sm">
+                                  <button
+                                    onClick={() => handleRechnungEdit(fp.id, r)}
+                                    className="text-apleona-navy hover:underline font-medium"
+                                  >
+                                    {r.rechnungsnummer}
+                                  </button>
+                                </td>
                                 <td className="px-3 py-2 text-sm">{formatDatum(r.datum)}</td>
                                 <td className="px-3 py-2 text-sm">
                                   {r.typ === 'schlussrechnung' ? (
                                     <span className="badge-warning">Schlussrechnung</span>
-                                  ) : r.typ === 'anzahlung' ? 'Anzahlung' : 'Teilrechnung'}
+                                  ) : RechnungsTypLabels[r.typ]}
                                 </td>
                                 <td className="px-3 py-2 text-sm text-right font-medium">
                                   {formatWaehrung(r.betragNetto)}
                                 </td>
-                                <td className="px-3 py-2 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={r.geprueft}
-                                    onChange={() => toggleRechnungStatus(fp.id, r.id, 'geprueft')}
-                                  />
+                                <td className="px-3 py-2 text-center text-sm">
+                                  {r.geprueftDatum ? formatDatum(r.geprueftDatum) : '-'}
+                                </td>
+                                <td className="px-3 py-2 text-center text-sm">
+                                  {r.bezahltDatum ? formatDatum(r.bezahltDatum) : '-'}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-apleona-gray-600 max-w-xs truncate" title={r.info}>
+                                  {r.info || '-'}
                                 </td>
                                 <td className="px-3 py-2 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={r.freigegeben}
-                                    onChange={() => toggleRechnungStatus(fp.id, r.id, 'freigegeben')}
-                                  />
+                                  <div className="flex justify-center space-x-2">
+                                    <button onClick={() => handleRechnungEdit(fp.id, r)} className="text-apleona-navy hover:text-apleona-navy-dark">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button onClick={() => handleRechnungDelete(fp.id, r.id)} className="text-apleona-red hover:text-apleona-red-dark">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
+                      )}
+                    </div>
+
+                    {/* Abnahmen */}
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-medium">Abnahmen</h4>
+                        <button
+                          onClick={() => handleAbnahmeHinzufuegen(fp.id)}
+                          className="btn-secondary text-sm"
+                        >
+                          + Abnahme
+                        </button>
+                      </div>
+
+                      {(!fp.abnahmen || fp.abnahmen.length === 0) ? (
+                        <p className="text-apleona-gray-500 text-sm">Keine Abnahmen vorhanden</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {fp.abnahmen.map(abnahme => {
+                            const verknuepfteMaengel = projekt.maengel.filter(m => abnahme.maengelIds.includes(m.id));
+                            return (
+                              <div key={abnahme.id} className={`border rounded-lg p-3 ${abnahme.abnahmeart === 'endabnahme' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${abnahme.abnahmeart === 'endabnahme' ? 'bg-green-200 text-green-800' : 'bg-blue-200 text-blue-800'}`}>
+                                        {abnahme.abnahmeart === 'endabnahme' ? 'Endabnahme' : 'Teilabnahme'}
+                                      </span>
+                                      <span className="text-sm font-medium">{formatDatum(abnahme.termin)}</span>
+                                    </div>
+                                    {abnahme.leistungen && (
+                                      <p className="text-sm text-apleona-gray-600 mt-1">
+                                        <span className="font-medium">Leistungen:</span> {abnahme.leistungen}
+                                      </p>
+                                    )}
+                                    {verknuepfteMaengel.length > 0 && (
+                                      <div className="mt-2">
+                                        <span className="text-xs font-medium text-apleona-gray-500">Mängel ({verknuepfteMaengel.length}):</span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {verknuepfteMaengel.map(m => (
+                                            <span key={m.id} className={`text-xs px-2 py-0.5 rounded ${m.status === 'behoben' || m.status === 'abgenommen' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                              #{m.mangelnummer}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex space-x-2">
+                                    <button onClick={() => handleAbnahmeEdit(fp.id, abnahme)} className="text-apleona-navy hover:text-apleona-navy-dark">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button onClick={() => handleAbnahmeDelete(fp.id, abnahme.id)} className="text-apleona-red hover:text-apleona-red-dark">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
 
@@ -621,7 +818,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Fachplaner Modal */}
       {zeigeModal && (
-        <div className="modal-overlay" onClick={() => setZeigeModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">
               {editFachplaner ? 'Fachplaner bearbeiten' : 'Neuer Fachplaner'}
@@ -693,15 +890,8 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
                 </div>
               </div>
 
-              <div>
-                <label className="label">Genehmigtes Budget (netto EUR)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.budgetGenehmigt}
-                  onChange={e => setFormData({ ...formData, budgetGenehmigt: parseFloat(e.target.value) || 0 })}
-                  className="input-field"
-                />
+              <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                <strong>Hinweis:</strong> Das Budget wird automatisch aus den freigegebenen Hauptangeboten und beauftragten Nachträgen berechnet.
               </div>
 
               <div>
@@ -731,14 +921,14 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Rechnung Modal */}
       {zeigeRechnungModal && (
-        <div className="modal-overlay" onClick={() => setZeigeRechnungModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeRechnungModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-semibold mb-4">Neue Rechnung</h2>
+            <h2 className="text-xl font-semibold mb-4">{editRechnung ? 'Rechnung bearbeiten' : 'Neue Rechnung'}</h2>
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Rechnungsnummer</label>
+                  <label className="label">Re-Nr.</label>
                   <input
                     type="text"
                     value={rechnungForm.rechnungsnummer}
@@ -747,7 +937,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
                   />
                 </div>
                 <div>
-                  <label className="label">Datum</label>
+                  <label className="label">Re-Datum</label>
                   <input
                     type="date"
                     value={rechnungForm.datum}
@@ -759,7 +949,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Betrag netto (EUR)</label>
+                  <label className="label">Zahlbetrag netto (EUR)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -769,17 +959,49 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
                   />
                 </div>
                 <div>
-                  <label className="label">Typ</label>
+                  <label className="label">Rechnungsart</label>
                   <select
                     value={rechnungForm.typ}
                     onChange={e => setRechnungForm({ ...rechnungForm, typ: e.target.value as RechnungsTyp })}
                     className="input-field"
                   >
                     <option value="anzahlung">Anzahlung</option>
-                    <option value="teilrechnung">Teilrechnung</option>
+                    <option value="teilrechnung">Abschlagrechnung</option>
                     <option value="schlussrechnung">Schlussrechnung</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Geprüft (Datum)</label>
+                  <input
+                    type="date"
+                    value={rechnungForm.geprueftDatum}
+                    onChange={e => setRechnungForm({ ...rechnungForm, geprueftDatum: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="label">Bezahlt (Datum)</label>
+                  <input
+                    type="date"
+                    value={rechnungForm.bezahltDatum}
+                    onChange={e => setRechnungForm({ ...rechnungForm, bezahltDatum: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Info</label>
+                <textarea
+                  value={rechnungForm.info}
+                  onChange={e => setRechnungForm({ ...rechnungForm, info: e.target.value })}
+                  className="input-field"
+                  rows={2}
+                  placeholder="Zusätzliche Informationen zur Rechnung..."
+                />
               </div>
             </div>
 
@@ -799,7 +1021,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
 
       {/* Angebot Modal */}
       {zeigeAngebotModal && (
-        <div className="modal-overlay" onClick={() => setZeigeAngebotModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeAngebotModal(false)}>
           <div className="modal-content p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">
               {editAngebot ? 'Angebot bearbeiten' : (angebotForm.istNachtrag ? 'Neuer Nachtrag' : 'Neues Angebot')}
@@ -874,6 +1096,86 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
               <button
                 onClick={handleAngebotSave}
                 disabled={!angebotForm.angebotsnummer || !angebotForm.datum}
+                className="btn-primary disabled:opacity-50"
+              >
+                Speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Abnahme Modal */}
+      {zeigeAbnahmeModal && (
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeAbnahmeModal(false)}>
+          <div className="modal-content p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-semibold mb-4">{editAbnahme ? 'Abnahme bearbeiten' : 'Neue Abnahme'}</h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Abnahmeart</label>
+                  <select
+                    value={abnahmeForm.abnahmeart}
+                    onChange={e => setAbnahmeForm({ ...abnahmeForm, abnahmeart: e.target.value as AbnahmeArt })}
+                    className="input-field"
+                  >
+                    <option value="teilabnahme">Teilabnahme</option>
+                    <option value="endabnahme">Endabnahme</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Termin</label>
+                  <input
+                    type="date"
+                    value={abnahmeForm.termin}
+                    onChange={e => setAbnahmeForm({ ...abnahmeForm, termin: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Leistungen</label>
+                <textarea
+                  value={abnahmeForm.leistungen}
+                  onChange={e => setAbnahmeForm({ ...abnahmeForm, leistungen: e.target.value })}
+                  className="input-field"
+                  rows={3}
+                  placeholder="Beschreibung der abzunehmenden Leistungen..."
+                />
+              </div>
+
+              <div>
+                <label className="label">Mängel zuordnen</label>
+                <p className="text-xs text-apleona-gray-500 mb-2">Wählen Sie Mängel aus dem Projekt aus, die bei dieser Abnahme festgestellt wurden.</p>
+                <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1 bg-apleona-gray-50">
+                  {projekt.maengel.length === 0 ? (
+                    <p className="text-sm text-apleona-gray-500 italic">Keine Mängel im Projekt vorhanden</p>
+                  ) : (
+                    projekt.maengel.map(mangel => (
+                      <label key={mangel.id} className="flex items-center space-x-2 cursor-pointer hover:bg-white p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={abnahmeForm.maengelIds.includes(mangel.id)}
+                          onChange={() => toggleMangelSelection(mangel.id)}
+                        />
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${mangel.status === 'behoben' || mangel.status === 'abgenommen' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          #{mangel.mangelnummer}
+                        </span>
+                        <span className="text-sm truncate">{mangel.beschreibung}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button onClick={() => setZeigeAbnahmeModal(false)} className="btn-secondary">Abbrechen</button>
+              <button
+                onClick={handleAbnahmeSave}
+                disabled={!abnahmeForm.termin}
                 className="btn-primary disabled:opacity-50"
               >
                 Speichern
