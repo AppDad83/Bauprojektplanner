@@ -39,6 +39,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
     phasen: [] as AHOPhase[],
     startDatumSoll: '',
     endDatumSoll: '',
+    endDatumIst: '',
     status: 'offen' as AufgabenStatus,
     abhaengigkeitenIds: [] as string[]
   });
@@ -150,7 +151,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
     setEditAufgabe(null);
     setFormData({
       titel: '', beschreibung: '', gewerkId: '', phasen: [],
-      startDatumSoll: '', endDatumSoll: '', status: 'offen', abhaengigkeitenIds: []
+      startDatumSoll: '', endDatumSoll: '', endDatumIst: '', status: 'offen', abhaengigkeitenIds: []
     });
     setZeigeModal(true);
   };
@@ -164,6 +165,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
       phasen: a.phasen,
       startDatumSoll: a.startDatumSoll || '',
       endDatumSoll: a.endDatumSoll || '',
+      endDatumIst: a.endDatumIst || '',
       status: a.status,
       abhaengigkeitenIds: a.abhaengigkeitenIds || []
     });
@@ -182,6 +184,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
               phasen: formData.phasen,
               startDatumSoll: formData.startDatumSoll || undefined,
               endDatumSoll: formData.endDatumSoll || undefined,
+              endDatumIst: formData.endDatumIst || undefined,
               status: formData.status,
               abhaengigkeitenIds: formData.abhaengigkeitenIds
             }
@@ -199,6 +202,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
         stakeholderIds: [],
         startDatumSoll: formData.startDatumSoll || undefined,
         endDatumSoll: formData.endDatumSoll || undefined,
+        endDatumIst: formData.endDatumIst || undefined,
         fortschrittProzent: 0,
         abhaengigkeitenIds: formData.abhaengigkeitenIds,
         status: formData.status,
@@ -307,6 +311,37 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
     return aufgabe.abhaengigkeitenIds
       .map(id => projekt.aufgaben.find(a => a.id === id)?.titel)
       .filter(Boolean) as string[];
+  };
+
+  // Helper: Berechne Pfeil-Koordinaten für Abhängigkeiten
+  const berechneAbhaengigkeitsPfeile = () => {
+    const pfeile: { vonX: number; vonY: number; nachX: number; nachY: number; aufgabeId: string }[] = [];
+    const zeilenHoehe = 48; // h-12 = 48px
+
+    projekt.aufgaben.forEach((aufgabe, aufgabeIndex) => {
+      aufgabe.abhaengigkeitenIds.forEach(vorgaengerId => {
+        const vorgaengerIndex = projekt.aufgaben.findIndex(a => a.id === vorgaengerId);
+        if (vorgaengerIndex === -1) return;
+
+        const vorgaenger = projekt.aufgaben[vorgaengerIndex];
+        if (!vorgaenger.endDatumSoll || !aufgabe.startDatumSoll) return;
+
+        const vorgaengerBalken = berechneBalken(vorgaenger.startDatumSoll, vorgaenger.endDatumSoll);
+        const aufgabeBalken = berechneBalken(aufgabe.startDatumSoll, aufgabe.endDatumSoll);
+
+        if (vorgaengerBalken.width === 0 || aufgabeBalken.width === 0) return;
+
+        pfeile.push({
+          vonX: vorgaengerBalken.left + vorgaengerBalken.width,
+          vonY: vorgaengerIndex * zeilenHoehe + 24, // Mitte der Zeile
+          nachX: aufgabeBalken.left,
+          nachY: aufgabeIndex * zeilenHoehe + 24,
+          aufgabeId: aufgabe.id
+        });
+      });
+    });
+
+    return pfeile;
   };
 
   return (
@@ -506,92 +541,178 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                   </div>
                 </div>
 
-                {/* Aufgaben-Zeilen */}
-                {projekt.aufgaben.map(aufgabe => {
-                  const sollBalken = berechneBalken(aufgabe.startDatumSoll, aufgabe.endDatumSoll);
-                  const istBalken = berechneBalken(aufgabe.startDatumIst, aufgabe.endDatumIst);
-                  const konflikt = berechneKonflikte(aufgabe);
+                {/* Aufgaben-Zeilen mit Pfeilen */}
+                <div className="relative">
+                  {/* SVG-Overlay für Abhängigkeits-Pfeile */}
+                  <svg
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: '208px',
+                      top: 0,
+                      width: `${ganttBreite}px`,
+                      height: `${projekt.aufgaben.length * 48}px`,
+                      zIndex: 5
+                    }}
+                  >
+                    <defs>
+                      <marker
+                        id="arrowhead"
+                        markerWidth="10"
+                        markerHeight="7"
+                        refX="9"
+                        refY="3.5"
+                        orient="auto"
+                      >
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#002D5A" />
+                      </marker>
+                    </defs>
+                    {berechneAbhaengigkeitsPfeile().map((pfeil, i) => {
+                      // Berechne Pfad: von Ende Vorgänger nach Start Nachfolger
+                      const dx = pfeil.nachX - pfeil.vonX;
+                      const dy = pfeil.nachY - pfeil.vonY;
 
-                  let konfliktBalken = null;
-                  if (konflikt && aufgabe.startDatumSoll) {
-                    const konfliktEnde = new Date(aufgabe.startDatumSoll);
-                    konfliktEnde.setDate(konfliktEnde.getDate() + konflikt.konfliktTage - 1);
-                    konfliktBalken = berechneBalken(aufgabe.startDatumSoll, konfliktEnde.toISOString().split('T')[0]);
-                  }
+                      // Wenn Nachfolger links vom Vorgänger-Ende startet (Konflikt), zeichne Bogen
+                      if (dx < 20) {
+                        const midY = (pfeil.vonY + pfeil.nachY) / 2;
+                        return (
+                          <path
+                            key={i}
+                            d={`M ${pfeil.vonX} ${pfeil.vonY}
+                                C ${pfeil.vonX + 30} ${pfeil.vonY},
+                                  ${pfeil.vonX + 30} ${midY},
+                                  ${pfeil.vonX + 15} ${midY}
+                                L ${pfeil.nachX - 15} ${midY}
+                                C ${pfeil.nachX - 30} ${midY},
+                                  ${pfeil.nachX - 30} ${pfeil.nachY},
+                                  ${pfeil.nachX} ${pfeil.nachY}`}
+                            fill="none"
+                            stroke="#002D5A"
+                            strokeWidth="2"
+                            markerEnd="url(#arrowhead)"
+                            opacity="0.6"
+                          />
+                        );
+                      }
 
-                  return (
-                    <div key={aufgabe.id} className="flex items-center border-b border-apleona-gray-100">
-                      <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-10 border-r border-apleona-gray-200 py-2 px-2">
-                        <p className="text-sm font-medium truncate" title={aufgabe.titel}>{aufgabe.titel}</p>
-                        <p className="text-xs text-apleona-gray-500">
-                          {aufgabe.fortschrittProzent}%
-                          {konflikt && <span className="text-red-600 ml-2">({konflikt.konfliktTage}d Konflikt)</span>}
-                        </p>
-                      </div>
-                      <div className="relative h-12" style={{ width: `${ganttBreite}px` }}>
-                        {/* Hintergrund-Streifen */}
-                        <div className="absolute inset-0 flex">
-                          {zeitskala === 'monate' ? (
-                            monateHeader.map((monat, i) => (
-                              <div key={i} className={`h-full border-r border-apleona-gray-100 ${i % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}
-                                style={{ width: `${monat.breite * 3}px` }} />
-                            ))
-                          ) : (
-                            zeiteinheitenHeader.map((_, i) => (
-                              <div key={i} className={`h-full border-r border-apleona-gray-100 ${i % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}
-                                style={{ width: zeitskala === 'tage' ? '30px' : '50px' }} />
-                            ))
+                      // Normaler Pfeil mit Kurve
+                      return (
+                        <path
+                          key={i}
+                          d={`M ${pfeil.vonX} ${pfeil.vonY}
+                              C ${pfeil.vonX + dx/3} ${pfeil.vonY},
+                                ${pfeil.nachX - dx/3} ${pfeil.nachY},
+                                ${pfeil.nachX} ${pfeil.nachY}`}
+                          fill="none"
+                          stroke="#002D5A"
+                          strokeWidth="2"
+                          markerEnd="url(#arrowhead)"
+                          opacity="0.6"
+                        />
+                      );
+                    })}
+                  </svg>
+
+                  {projekt.aufgaben.map(aufgabe => {
+                    const sollBalken = berechneBalken(aufgabe.startDatumSoll, aufgabe.endDatumSoll);
+                    const istBalken = berechneBalken(aufgabe.startDatumIst, aufgabe.endDatumIst);
+                    const konflikt = berechneKonflikte(aufgabe);
+
+                    let konfliktBalken = null;
+                    if (konflikt && aufgabe.startDatumSoll) {
+                      const konfliktEnde = new Date(aufgabe.startDatumSoll);
+                      konfliktEnde.setDate(konfliktEnde.getDate() + konflikt.konfliktTage - 1);
+                      konfliktBalken = berechneBalken(aufgabe.startDatumSoll, konfliktEnde.toISOString().split('T')[0]);
+                    }
+
+                    return (
+                      <div key={aufgabe.id} className="flex items-center border-b border-apleona-gray-100">
+                        <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-10 border-r border-apleona-gray-200 py-2 px-2">
+                          <p className="text-sm font-medium truncate" title={aufgabe.titel}>{aufgabe.titel}</p>
+                          <p className="text-xs text-apleona-gray-500">
+                            {aufgabe.fortschrittProzent}%
+                            {konflikt && <span className="text-red-600 ml-2">({konflikt.konfliktTage}d Konflikt)</span>}
+                          </p>
+                        </div>
+                        <div className="relative h-12" style={{ width: `${ganttBreite}px` }}>
+                          {/* Hintergrund-Streifen */}
+                          <div className="absolute inset-0 flex">
+                            {zeitskala === 'monate' ? (
+                              monateHeader.map((monat, i) => (
+                                <div key={i} className={`h-full border-r border-apleona-gray-100 ${i % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}
+                                  style={{ width: `${monat.breite * 3}px` }} />
+                              ))
+                            ) : (
+                              zeiteinheitenHeader.map((_, i) => (
+                                <div key={i} className={`h-full border-r border-apleona-gray-100 ${i % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}
+                                  style={{ width: zeitskala === 'tage' ? '30px' : '50px' }} />
+                              ))
+                            )}
+                          </div>
+
+                          {/* Konflikt-Balken (grau gestreift) - klickbar */}
+                          {konfliktBalken && konfliktBalken.width > 0 && (
+                            <div
+                              className="absolute top-4 h-4 rounded border border-gray-400 cursor-pointer hover:opacity-80 z-10"
+                              style={{
+                                left: `${konfliktBalken.left}px`,
+                                width: `${konfliktBalken.width}px`,
+                                background: 'repeating-linear-gradient(45deg, #9ca3af, #9ca3af 4px, #d1d5db 4px, #d1d5db 8px)'
+                              }}
+                              title={`Konflikt: ${konflikt!.konfliktTage} Tage - Klicken zum Bearbeiten`}
+                              onClick={() => handleEdit(aufgabe)}
+                            />
+                          )}
+
+                          {/* Soll-Balken - klickbar */}
+                          {sollBalken.width > 0 && !konfliktBalken && (
+                            <div
+                              className="absolute top-1 h-4 rounded bg-apleona-navy opacity-40 cursor-pointer hover:opacity-60 z-10"
+                              style={{ left: `${sollBalken.left}px`, width: `${sollBalken.width}px` }}
+                              title={`Soll: ${formatDatum(aufgabe.startDatumSoll)} - ${formatDatum(aufgabe.endDatumSoll)} - Klicken zum Bearbeiten`}
+                              onClick={() => handleEdit(aufgabe)}
+                            />
+                          )}
+
+                          {/* Ist-Balken oder Haupt-Balken - klickbar */}
+                          {istBalken.width > 0 ? (
+                            <div
+                              className={`absolute top-6 h-4 rounded cursor-pointer hover:opacity-80 z-10 ${aufgabe.status === 'verzoegert' ? 'bg-status-red' : 'bg-apleona-navy'}`}
+                              style={{ left: `${istBalken.left}px`, width: `${istBalken.width}px` }}
+                              title={`Ist: ${formatDatum(aufgabe.startDatumIst)} - ${formatDatum(aufgabe.endDatumIst)} - Klicken zum Bearbeiten`}
+                              onClick={() => handleEdit(aufgabe)}
+                            >
+                              <div className="h-full bg-status-green rounded-l opacity-50" style={{ width: `${aufgabe.fortschrittProzent}%` }} />
+                            </div>
+                          ) : sollBalken.width > 0 && !konfliktBalken && (
+                            <div
+                              className={`absolute top-4 h-4 rounded cursor-pointer hover:opacity-80 z-10 ${StatusColors[aufgabe.status]}`}
+                              style={{ left: `${sollBalken.left}px`, width: `${sollBalken.width}px` }}
+                              title={`Klicken zum Bearbeiten`}
+                              onClick={() => handleEdit(aufgabe)}
+                            >
+                              <div className="h-full bg-status-green rounded-l" style={{ width: `${aufgabe.fortschrittProzent}%` }} />
+                            </div>
+                          )}
+
+                          {/* Bei Konflikt: Rest-Balken nach Konflikt - klickbar */}
+                          {konfliktBalken && sollBalken.width > konfliktBalken.width && (
+                            <div
+                              className={`absolute top-4 h-4 rounded-r cursor-pointer hover:opacity-80 z-10 ${StatusColors[aufgabe.status]}`}
+                              style={{
+                                left: `${konfliktBalken.left + konfliktBalken.width}px`,
+                                width: `${sollBalken.width - konfliktBalken.width}px`
+                              }}
+                              title={`Klicken zum Bearbeiten`}
+                              onClick={() => handleEdit(aufgabe)}
+                            >
+                              <div className="h-full bg-status-green rounded-l" style={{ width: `${aufgabe.fortschrittProzent}%` }} />
+                            </div>
                           )}
                         </div>
-
-                        {/* Konflikt-Balken (grau gestreift) */}
-                        {konfliktBalken && konfliktBalken.width > 0 && (
-                          <div className="absolute top-4 h-4 rounded border border-gray-400"
-                            style={{
-                              left: `${konfliktBalken.left}px`,
-                              width: `${konfliktBalken.width}px`,
-                              background: 'repeating-linear-gradient(45deg, #9ca3af, #9ca3af 4px, #d1d5db 4px, #d1d5db 8px)'
-                            }}
-                            title={`Konflikt: ${konflikt!.konfliktTage} Tage - Vorgänger noch nicht abgeschlossen`}
-                          />
-                        )}
-
-                        {/* Soll-Balken */}
-                        {sollBalken.width > 0 && !konfliktBalken && (
-                          <div className="absolute top-1 h-4 rounded bg-apleona-navy opacity-40"
-                            style={{ left: `${sollBalken.left}px`, width: `${sollBalken.width}px` }}
-                            title={`Soll: ${formatDatum(aufgabe.startDatumSoll)} - ${formatDatum(aufgabe.endDatumSoll)}`}
-                          />
-                        )}
-
-                        {/* Ist-Balken oder Haupt-Balken */}
-                        {istBalken.width > 0 ? (
-                          <div className={`absolute top-6 h-4 rounded ${aufgabe.status === 'verzoegert' ? 'bg-status-red' : 'bg-apleona-navy'}`}
-                            style={{ left: `${istBalken.left}px`, width: `${istBalken.width}px` }}
-                            title={`Ist: ${formatDatum(aufgabe.startDatumIst)} - ${formatDatum(aufgabe.endDatumIst)}`}>
-                            <div className="h-full bg-status-green rounded-l opacity-50" style={{ width: `${aufgabe.fortschrittProzent}%` }} />
-                          </div>
-                        ) : sollBalken.width > 0 && !konfliktBalken && (
-                          <div className={`absolute top-4 h-4 rounded ${StatusColors[aufgabe.status]}`}
-                            style={{ left: `${sollBalken.left}px`, width: `${sollBalken.width}px` }}>
-                            <div className="h-full bg-status-green rounded-l" style={{ width: `${aufgabe.fortschrittProzent}%` }} />
-                          </div>
-                        )}
-
-                        {/* Bei Konflikt: Rest-Balken nach Konflikt */}
-                        {konfliktBalken && sollBalken.width > konfliktBalken.width && (
-                          <div className={`absolute top-4 h-4 rounded-r ${StatusColors[aufgabe.status]}`}
-                            style={{
-                              left: `${konfliktBalken.left + konfliktBalken.width}px`,
-                              width: `${sollBalken.width - konfliktBalken.width}px`
-                            }}>
-                            <div className="h-full bg-status-green rounded-l" style={{ width: `${aufgabe.fortschrittProzent}%` }} />
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
 
                 {/* Legende */}
                 <div className="flex items-center flex-wrap gap-6 mt-4 pt-4 border-t border-apleona-gray-200 text-xs text-apleona-gray-600">
@@ -615,6 +736,17 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                     <div className="w-4 h-3 rounded border border-gray-400 mr-2"
                       style={{ background: 'repeating-linear-gradient(45deg, #9ca3af, #9ca3af 2px, #d1d5db 2px, #d1d5db 4px)' }}></div>
                     <span>Konflikt (Vorgänger nicht beendet)</span>
+                  </div>
+                  <div className="flex items-center">
+                    <svg className="w-6 h-3 mr-2" viewBox="0 0 24 12">
+                      <defs>
+                        <marker id="arrowhead-legend" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                          <polygon points="0 0, 6 2, 0 4" fill="#002D5A" />
+                        </marker>
+                      </defs>
+                      <path d="M 2 6 L 18 6" stroke="#002D5A" strokeWidth="2" markerEnd="url(#arrowhead-legend)" />
+                    </svg>
+                    <span>Abhängigkeit</span>
                   </div>
                 </div>
               </div>
@@ -657,7 +789,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="label">Startdatum (Soll)</label>
                   <input type="date" value={formData.startDatumSoll} onChange={e => setFormData({ ...formData, startDatumSoll: e.target.value })} className="input-field" />
@@ -665,6 +797,15 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                 <div>
                   <label className="label">Enddatum (Soll)</label>
                   <input type="date" value={formData.endDatumSoll} onChange={e => setFormData({ ...formData, endDatumSoll: e.target.value })} className="input-field" />
+                </div>
+                <div>
+                  <label className="label">Enddatum (Ist)</label>
+                  <input type="date" value={formData.endDatumIst} onChange={e => setFormData({ ...formData, endDatumIst: e.target.value })} className="input-field" />
+                  {formData.endDatumSoll && formData.endDatumIst && formData.endDatumIst > formData.endDatumSoll && (
+                    <p className="text-xs text-status-red mt-1">
+                      Verzögert um {Math.ceil((new Date(formData.endDatumIst).getTime() - new Date(formData.endDatumSoll).getTime()) / (1000 * 60 * 60 * 24))} Tage
+                    </p>
+                  )}
                 </div>
               </div>
 
