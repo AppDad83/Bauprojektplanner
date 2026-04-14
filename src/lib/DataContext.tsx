@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { AppDaten, Projekt, ProjektStatus } from '@/types';
+import { AppDaten, Projekt, ProjektStatus, Fachfirma, BuergschaftDaten, RechnungSicherheiten } from '@/types';
 import { erstelleLeereAppDaten, getJsonDateiname, generateId } from './utils';
 
 // Migration: Alte Status-Werte (gruen/gelb/rot) auf neue konvertieren
@@ -27,6 +27,95 @@ function migriereProjektStatus(daten: AppDaten): AppDaten {
       return projekt;
     })
   };
+}
+
+// Migration: Fachfirmen-Daten (Bürgschaften, Rechnungen, Abnahmen)
+function migriereFachfirmenDaten(daten: AppDaten): AppDaten {
+  return {
+    ...daten,
+    projekte: daten.projekte.map(projekt => ({
+      ...projekt,
+      fachfirmen: projekt.fachfirmen.map(ff => {
+        const alteFf = ff as Fachfirma & { abnahmen?: unknown[] };
+
+        // 1. Bürgschaften migrieren: alte Struktur → neue BuergschaftDaten
+        const migrierteVertragserfuellung = {
+          sicherheitseinbehaltNetto: alteFf.vertragserfuellung?.sicherheitseinbehaltNetto,
+          buergschaft: migriereBuergschaft(alteFf.vertragserfuellung?.buergschaft, 'vertragserfuellung')
+        };
+
+        const migrierteGewaehrleistung = {
+          einbehaltNetto: alteFf.gewaehrleistung?.einbehaltNetto,
+          buergschaft: migriereBuergschaft(alteFf.gewaehrleistung?.buergschaft, 'gewaehrleistung')
+        };
+
+        // 2. Rechnungen migrieren: sicherheitseinbehaltNetto → sicherheiten
+        const migrierteRechnungen = ff.rechnungen.map(rechnung => {
+          // Wenn bereits neue Struktur vorhanden, nichts tun
+          if (rechnung.sicherheiten) {
+            return rechnung;
+          }
+
+          // Alten sicherheitseinbehaltNetto migrieren
+          if (rechnung.sicherheitseinbehaltNetto) {
+            const sicherheiten: RechnungSicherheiten = {
+              vertragserfuellungEinbehalt: rechnung.sicherheitseinbehaltNetto
+            };
+            return {
+              ...rechnung,
+              sicherheiten,
+              sicherheitseinbehaltNetto: undefined // Legacy-Feld entfernen
+            };
+          }
+
+          return rechnung;
+        });
+
+        // 3. Abnahmen-Array initialisieren falls nicht vorhanden
+        const abnahmen = alteFf.abnahmen || [];
+
+        return {
+          ...ff,
+          vertragserfuellung: migrierteVertragserfuellung,
+          gewaehrleistung: migrierteGewaehrleistung,
+          rechnungen: migrierteRechnungen,
+          abnahmen
+        } as Fachfirma;
+      })
+    }))
+  };
+}
+
+// Hilfsfunktion: Alte Bürgschaftsstruktur auf neue migrieren
+function migriereBuergschaft(alteBuergschaft: BuergschaftDaten | { urkundeErhalten?: boolean; urkundeZurueckgesendet?: boolean; datum?: string } | undefined, typ: 'vertragserfuellung' | 'gewaehrleistung'): BuergschaftDaten {
+  if (!alteBuergschaft) {
+    return {
+      urkundeErhalten: false,
+      urkundeZurueckgesendet: false
+    };
+  }
+
+  // Prüfen ob bereits neue Struktur (hat beide Felder)
+  if ('urkundeErhalten' in alteBuergschaft && 'urkundeZurueckgesendet' in alteBuergschaft &&
+      alteBuergschaft.urkundeErhalten !== undefined && alteBuergschaft.urkundeZurueckgesendet !== undefined) {
+    return alteBuergschaft as BuergschaftDaten;
+  }
+
+  // Alte Struktur migrieren
+  const altBuergschaft = alteBuergschaft as { urkundeErhalten?: boolean; urkundeZurueckgesendet?: boolean; datum?: string };
+  if (typ === 'vertragserfuellung') {
+    return {
+      urkundeErhalten: altBuergschaft.urkundeErhalten || false,
+      urkundeErhaltenDatum: altBuergschaft.datum,
+      urkundeZurueckgesendet: false
+    };
+  } else {
+    return {
+      urkundeErhalten: false,
+      urkundeZurueckgesendet: altBuergschaft.urkundeZurueckgesendet || false,
+      urkundeZurueckgesendetDatum: altBuergschaft.datum
+    };
+  }
 }
 
 interface DataContextType {
@@ -73,7 +162,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const parsed = JSON.parse(content) as AppDaten;
 
           // Migration: Alte Status-Werte konvertieren
-          const migriert = migriereProjektStatus(parsed);
+          let migriert = migriereProjektStatus(parsed);
+          // Migration: Fachfirmen-Daten migrieren
+          migriert = migriereFachfirmenDaten(migriert);
 
           // Versionswarnung prüfen
           if (letztesSpeicherdatum) {

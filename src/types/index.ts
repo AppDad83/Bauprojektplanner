@@ -51,6 +51,17 @@ export interface FeeHistorieEintrag {
   grund?: string;
 }
 
+// Sicherheiten-Struktur pro Rechnung (für Fachfirmen)
+// Pro Kategorie ist nur ENTWEDER Einbehalt ODER Bürgschaft möglich
+export interface RechnungSicherheiten {
+  // Vertragserfüllung (€ netto) - NUR EINES VON BEIDEN
+  vertragserfuellungEinbehalt?: number;
+  vertragserfuellungBuergschaft?: number;
+  // Gewährleistung (€ netto) - NUR EINES VON BEIDEN
+  gewaehrleistungEinbehalt?: number;
+  gewaehrleistungBuergschaft?: number;
+}
+
 export interface Rechnung {
   id: string;
   rechnungsnummer: string;
@@ -62,7 +73,8 @@ export interface Rechnung {
   freigegeben: boolean; // Legacy
   bezahltDatum?: string;
   bereitsInFeeAbgerechnet: boolean;
-  sicherheitseinbehaltNetto?: number; // Nur für Fachfirmen
+  sicherheitseinbehaltNetto?: number; // Legacy - nur für Migration
+  sicherheiten?: RechnungSicherheiten; // NEU: Detaillierte Sicherheiten
   info?: string;
   notizen?: string;
 }
@@ -76,6 +88,16 @@ export interface FachplanerAbnahme {
   termin: string;
   leistungen?: string;
   maengelIds: string[]; // Verknüpfung zu Projekt-Mängeln
+}
+
+// Abnahme für Fachfirmen (mit Gewährleistung bis)
+export interface FachfirmaAbnahme {
+  id: string;
+  abnahmeart: AbnahmeArt;
+  termin: string;
+  leistungen?: string;
+  maengelIds: string[]; // Verknüpfung zu Projekt-Mängeln
+  gewaehrleistungBis?: string; // Datum - NEU gegenüber FachplanerAbnahme
 }
 
 export interface Angebot {
@@ -110,22 +132,24 @@ export interface VergabeEmpfehlung {
   abgelehntAm?: string;
 }
 
+// Bürgschafts-Daten für Vertragserfüllung und Gewährleistung
+export interface BuergschaftDaten {
+  urkundeErhalten: boolean;
+  urkundeErhaltenDatum?: string;
+  urkundeZurueckgesendet: boolean;
+  urkundeZurueckgesendetDatum?: string;
+}
+
 // Vertragserfüllung (Fachfirmen)
 export interface Vertragserfuellung {
   sicherheitseinbehaltNetto?: number;
-  buergschaft: {
-    urkundeErhalten: boolean;
-    datum?: string;
-  };
+  buergschaft: BuergschaftDaten;
 }
 
 // Gewährleistung (Fachfirmen)
 export interface Gewaehrleistung {
   einbehaltNetto?: number;
-  buergschaft: {
-    urkundeZurueckgesendet: boolean;
-    datum?: string;
-  };
+  buergschaft: BuergschaftDaten;
 }
 
 export interface BaseBeteiligter {
@@ -140,7 +164,7 @@ export interface BaseBeteiligter {
   gewerkId?: string; // Zugeordnetes Gewerk
   angebote: Angebot[];
   vergabeEmpfehlung: VergabeEmpfehlung;
-  budgetGenehmigt: number;
+  budgetGenehmigt?: number; // Optional - wird aus Angeboten berechnet
   budgetHistorie: BudgetHistorieEintrag[];
   rechnungen: Rechnung[];
   notizen?: string;
@@ -155,6 +179,7 @@ export interface Fachfirma extends BaseBeteiligter {
   typ: 'fachfirma';
   vertragserfuellung: Vertragserfuellung;
   gewaehrleistung: Gewaehrleistung;
+  abnahmen?: FachfirmaAbnahme[]; // NEU
 }
 
 // ============================================

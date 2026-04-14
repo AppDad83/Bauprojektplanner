@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { Projekt, AppDaten } from '@/types';
-import { formatDatum, formatWaehrung, berechneBudgetUebersicht } from './utils';
+import { formatDatum, formatWaehrung, berechneBudgetUebersicht, berechneEffektivesBudgetAusAngeboten } from './utils';
 
 export const exportProjektZuExcel = (projekt: Projekt) => {
   const workbook = XLSX.utils.book_new();
@@ -47,16 +47,17 @@ export const exportProjektZuExcel = (projekt: Projekt) => {
   XLSX.utils.book_append_sheet(workbook, wsAufgaben, 'Aufgaben');
 
   // 3. Fachplaner & Rechnungen
-  const fachplanerHeader = ['Firma', 'Name', 'Gewerk', 'Budget', 'Summe Rechnungen', 'Auslastung %'];
+  const fachplanerHeader = ['Firma', 'Name', 'Gewerk', 'Budget (eff.)', 'Summe Rechnungen', 'Auslastung %'];
   const fachplanerDaten = projekt.fachplaner.map(fp => {
     const summe = fp.rechnungen.reduce((s, r) => s + r.betragNetto, 0);
-    const auslastung = fp.budgetGenehmigt > 0 ? (summe / fp.budgetGenehmigt) * 100 : 0;
+    const effBudget = berechneEffektivesBudgetAusAngeboten(fp.angebote);
+    const auslastung = effBudget > 0 ? (summe / effBudget) * 100 : 0;
     const gewerk = projekt.gewerke.find(g => g.id === fp.gewerkId);
     return [
       fp.firma,
       fp.name,
       gewerk ? `${gewerk.dinNummer} - ${gewerk.bezeichnung}` : '-',
-      formatWaehrung(fp.budgetGenehmigt),
+      formatWaehrung(effBudget),
       formatWaehrung(summe),
       `${auslastung.toFixed(1)}%`
     ];
@@ -65,19 +66,20 @@ export const exportProjektZuExcel = (projekt: Projekt) => {
   XLSX.utils.book_append_sheet(workbook, wsFachplaner, 'Fachplaner');
 
   // 4. Fachfirmen & Rechnungen
-  const fachfirmenHeader = ['Firma', 'Name', 'Gewerk', 'Budget', 'Summe Rechnungen', 'Auslastung %', 'Bürgschaft zurück'];
+  const fachfirmenHeader = ['Firma', 'Name', 'Gewerk', 'Budget (eff.)', 'Summe Rechnungen', 'Auslastung %', 'GW-Bürgschaft zurück'];
   const fachfirmenDaten = projekt.fachfirmen.map(ff => {
     const summe = ff.rechnungen.reduce((s, r) => s + r.betragNetto, 0);
-    const auslastung = ff.budgetGenehmigt > 0 ? (summe / ff.budgetGenehmigt) * 100 : 0;
+    const effBudget = berechneEffektivesBudgetAusAngeboten(ff.angebote);
+    const auslastung = effBudget > 0 ? (summe / effBudget) * 100 : 0;
     const gewerk = projekt.gewerke.find(g => g.id === ff.gewerkId);
     return [
       ff.firma,
       ff.name,
       gewerk ? `${gewerk.dinNummer} - ${gewerk.bezeichnung}` : '-',
-      formatWaehrung(ff.budgetGenehmigt),
+      formatWaehrung(effBudget),
       formatWaehrung(summe),
       `${auslastung.toFixed(1)}%`,
-      ff.gewaehrleistung.buergschaft?.urkundeZurueckgesendet ? 'Ja' : 'Nein'
+      ff.gewaehrleistung.buergschaft.urkundeZurueckgesendet ? 'Ja' : 'Nein'
     ];
   });
   const wsFachfirmen = XLSX.utils.aoa_to_sheet([fachfirmenHeader, ...fachfirmenDaten]);

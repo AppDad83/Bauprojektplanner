@@ -64,36 +64,43 @@ export const berechneGewaehrleistungsfrist = (abnahmeDatum: string): string => {
   return abnahme.toISOString().split('T')[0];
 };
 
+// Budget aus Angeboten berechnen (freigegeben oder beauftragt)
+export const berechneEffektivesBudgetAusAngeboten = (angebote: { betragNetto: number; istNachtrag: boolean; freigabestatus: string }[]): number => {
+  const summeFreigegebeneHauptangebote = angebote
+    .filter(a => !a.istNachtrag && (a.freigabestatus === 'freigegeben' || a.freigabestatus === 'beauftragt'))
+    .reduce((sum, a) => sum + a.betragNetto, 0);
+  const summeFreigegebeneNachtraege = angebote
+    .filter(a => a.istNachtrag && (a.freigabestatus === 'freigegeben' || a.freigabestatus === 'beauftragt'))
+    .reduce((sum, a) => sum + a.betragNetto, 0);
+  return summeFreigegebeneHauptangebote + summeFreigegebeneNachtraege;
+};
+
 // Budget-Übersicht berechnen
 export const berechneBudgetUebersicht = (projekt: Projekt): BudgetUebersicht => {
+  // Fachplaner-Budget: Summe freigegebener Hauptangebote + Nachträge
   const summeFachplanerBudgets = projekt.fachplaner.reduce(
-    (sum, fp) => sum + fp.budgetGenehmigt, 0
-  );
-  const summeFachfirmenBudgets = projekt.fachfirmen.reduce(
-    (sum, ff) => sum + ff.budgetGenehmigt, 0
+    (sum, fp) => sum + berechneEffektivesBudgetAusAngeboten(fp.angebote), 0
   );
 
-  // Nachträge aus Angeboten (beauftragt)
-  const summeBeauftragteNachtraegeAngebote = [
-    ...projekt.fachplaner.flatMap(fp => fp.angebote),
-    ...projekt.fachfirmen.flatMap(ff => ff.angebote)
-  ]
-    .filter(a => a.istNachtrag && a.freigabestatus === 'beauftragt')
-    .reduce((sum, a) => sum + a.betragNetto, 0);
+  // Fachfirmen-Budget: Summe freigegebener Hauptangebote + Nachträge
+  const summeFachfirmenBudgets = projekt.fachfirmen.reduce(
+    (sum, ff) => sum + berechneEffektivesBudgetAusAngeboten(ff.angebote), 0
+  );
 
   // Legacy-Nachträge aus projekt.nachtraege (für Rückwärtskompatibilität)
   const summeGenehmigteNachtraegeLegacy = projekt.nachtraege
     .filter(n => n.status === 'genehmigt' || n.status === 'teilweise_genehmigt')
     .reduce((sum, n) => sum + (n.betragNettoGenehmigt || 0), 0);
 
-  const summeGenehmigteNachtraege = summeBeauftragteNachtraegeAngebote + summeGenehmigteNachtraegeLegacy;
+  // Nachträge sind jetzt in den Budgets enthalten, Legacy nur noch für alte Daten
+  const summeGenehmigteNachtraege = summeGenehmigteNachtraegeLegacy;
 
   const summeRechnungen = [
     ...projekt.fachplaner.flatMap(fp => fp.rechnungen),
     ...projekt.fachfirmen.flatMap(ff => ff.rechnungen)
   ].reduce((sum, r) => sum + r.betragNetto, 0);
 
-  // Gesamtbudget = Basis + beauftragte Nachträge
+  // Gesamtbudget = Fachplaner + Fachfirmen + Legacy-Nachträge
   const gesamtBudget = summeFachplanerBudgets + summeFachfirmenBudgets + summeGenehmigteNachtraege;
   const auslastungProzent = projekt.projektbudgetFreigegeben > 0
     ? (gesamtBudget / projekt.projektbudgetFreigegeben) * 100

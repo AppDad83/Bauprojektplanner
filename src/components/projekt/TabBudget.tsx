@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Projekt } from '@/types';
-import { formatDatum, formatWaehrung, berechneBudgetUebersicht } from '@/lib/utils';
+import { formatDatum, formatWaehrung, berechneBudgetUebersicht, berechneEffektivesBudgetAusAngeboten } from '@/lib/utils';
 
 interface Props {
   projekt: Projekt;
@@ -203,11 +203,12 @@ const TabBudget: React.FC<Props> = ({ projekt }) => {
               <tbody className="divide-y divide-apleona-gray-200">
                 {projekt.fachplaner.map(fp => {
                   const summe = fp.rechnungen.reduce((s, r) => s + r.betragNetto, 0);
-                  const prozent = fp.budgetGenehmigt > 0 ? (summe / fp.budgetGenehmigt) * 100 : 0;
+                  const effBudget = berechneEffektivesBudgetAusAngeboten(fp.angebote);
+                  const prozent = effBudget > 0 ? (summe / effBudget) * 100 : 0;
                   return (
                     <tr key={fp.id} className={prozent > 100 ? 'bg-red-50' : prozent > 80 ? 'bg-yellow-50' : ''}>
                       <td className="px-3 py-2 text-sm">{fp.firma}</td>
-                      <td className="px-3 py-2 text-sm text-right">{formatWaehrung(fp.budgetGenehmigt)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{formatWaehrung(effBudget)}</td>
                       <td className="px-3 py-2 text-sm text-right">{formatWaehrung(summe)}</td>
                       <td className="px-3 py-2 text-sm text-right font-medium">{prozent.toFixed(0)}%</td>
                     </tr>
@@ -249,11 +250,12 @@ const TabBudget: React.FC<Props> = ({ projekt }) => {
               <tbody className="divide-y divide-apleona-gray-200">
                 {projekt.fachfirmen.map(ff => {
                   const summe = ff.rechnungen.reduce((s, r) => s + r.betragNetto, 0);
-                  const prozent = ff.budgetGenehmigt > 0 ? (summe / ff.budgetGenehmigt) * 100 : 0;
+                  const effBudget = berechneEffektivesBudgetAusAngeboten(ff.angebote);
+                  const prozent = effBudget > 0 ? (summe / effBudget) * 100 : 0;
                   return (
                     <tr key={ff.id} className={prozent > 100 ? 'bg-red-50' : prozent > 80 ? 'bg-yellow-50' : ''}>
                       <td className="px-3 py-2 text-sm">{ff.firma}</td>
-                      <td className="px-3 py-2 text-sm text-right">{formatWaehrung(ff.budgetGenehmigt)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{formatWaehrung(effBudget)}</td>
                       <td className="px-3 py-2 text-sm text-right">{formatWaehrung(summe)}</td>
                       <td className="px-3 py-2 text-sm text-right font-medium">{prozent.toFixed(0)}%</td>
                     </tr>
