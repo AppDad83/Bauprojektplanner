@@ -16,12 +16,25 @@ const StatusLabels: Record<MangelStatus, string> = {
   abgenommen: 'Abgenommen'
 };
 
+// Hilfsfunktion: Mangel-Nummer generieren im Format "ABC-001"
+const generiereMangelNummer = (firmaName: string, projekt: Projekt, verantwortlicherId: string): string => {
+  const prefix = firmaName.substring(0, 3).toUpperCase();
+  const bestehendeNummern = projekt.maengel
+    .filter(m => m.verantwortlicherId === verantwortlicherId)
+    .map(m => {
+      const parts = m.mangelnummer.split('-');
+      return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+    });
+  const naechsteNr = Math.max(0, ...bestehendeNummern) + 1;
+  return `${prefix}-${String(naechsteNr).padStart(3, '0')}`;
+};
+
 const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [zeigeModal, setZeigeModal] = useState(false);
   const [editMangel, setEditMangel] = useState<Mangel | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('alle');
   const [filterGewerk, setFilterGewerk] = useState<string>('alle');
-  const [filterFachfirma, setFilterFachfirma] = useState<string>('alle');
+  const [filterVerantwortlicher, setFilterVerantwortlicher] = useState<string>('alle');
   const [zeigeForoModal, setZeigeFotoModal] = useState<string | null>(null);
   const [fullscreenFoto, setFullscreenFoto] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -33,21 +46,34 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [formData, setFormData] = useState({
     beschreibung: '',
     ortBauteil: '',
-    fachfirmaId: '',
+    verantwortlicherId: '',
+    istFachplaner: false,
     gewerkId: '',
     fristBehebung: '',
     status: 'offen' as MangelStatus,
-    behebungsDatumIst: '',
+    behobenDatum: '',
+    abnahmeDatum: '',
     fotos: [] as string[],
     notizen: ''
   });
 
-  const naechsteMangelnummer = Math.max(0, ...projekt.maengel.map(m => m.mangelnummer)) + 1;
+  // Hilfsfunktion: Name des Verantwortlichen ermitteln
+  const getVerantwortlicherName = (id: string, istFachplaner: boolean): string => {
+    if (istFachplaner) {
+      return projekt.fachplaner.find(fp => fp.id === id)?.firma || '-';
+    }
+    return projekt.fachfirmen.find(ff => ff.id === id)?.firma || '-';
+  };
+
+  const getGewerkName = (id: string) => {
+    const g = projekt.gewerke.find(gw => gw.id === id);
+    return g ? `${g.dinNummer} - ${g.bezeichnung}` : 'Unbekannt';
+  };
 
   const gefiltert = projekt.maengel.filter(m => {
     if (filterStatus !== 'alle' && m.status !== filterStatus) return false;
     if (filterGewerk !== 'alle' && m.gewerkId !== filterGewerk) return false;
-    if (filterFachfirma !== 'alle' && m.fachfirmaId !== filterFachfirma) return false;
+    if (filterVerantwortlicher !== 'alle' && m.verantwortlicherId !== filterVerantwortlicher) return false;
     return true;
   });
 
@@ -56,11 +82,13 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
     setFormData({
       beschreibung: '',
       ortBauteil: '',
-      fachfirmaId: '',
+      verantwortlicherId: '',
+      istFachplaner: false,
       gewerkId: '',
       fristBehebung: '',
       status: 'offen',
-      behebungsDatumIst: '',
+      behobenDatum: '',
+      abnahmeDatum: '',
       fotos: [],
       notizen: ''
     });
@@ -72,11 +100,13 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
     setFormData({
       beschreibung: m.beschreibung,
       ortBauteil: m.ortBauteil,
-      fachfirmaId: m.fachfirmaId,
+      verantwortlicherId: m.verantwortlicherId,
+      istFachplaner: m.istFachplaner,
       gewerkId: m.gewerkId,
       fristBehebung: m.fristBehebung,
       status: m.status,
-      behebungsDatumIst: m.behebungsDatumIst || '',
+      behobenDatum: m.behobenDatum || '',
+      abnahmeDatum: m.abnahmeDatum || '',
       fotos: m.fotos || [],
       notizen: m.notizen || ''
     });
@@ -104,33 +134,62 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
     }));
   };
 
+  // Handler für Verantwortlichen-Auswahl (kombiniertes Dropdown)
+  const handleVerantwortlicherChange = (value: string) => {
+    if (!value) {
+      setFormData({ ...formData, verantwortlicherId: '', istFachplaner: false });
+      return;
+    }
+
+    // Prüfen ob es ein Fachplaner oder eine Fachfirma ist
+    const istFachplaner = projekt.fachplaner.some(fp => fp.id === value);
+    setFormData({ ...formData, verantwortlicherId: value, istFachplaner });
+  };
+
   const handleSave = () => {
     if (editMangel) {
       const aktualisiert = projekt.maengel.map(m =>
         m.id === editMangel.id
           ? {
               ...m,
-              ...formData,
-              behebungsDatumIst: formData.behebungsDatumIst || undefined,
+              beschreibung: formData.beschreibung,
+              ortBauteil: formData.ortBauteil,
+              verantwortlicherId: formData.verantwortlicherId,
+              istFachplaner: formData.istFachplaner,
+              gewerkId: formData.gewerkId,
+              fristBehebung: formData.fristBehebung,
+              status: formData.status,
+              behobenDatum: formData.behobenDatum || undefined,
+              abnahmeDatum: formData.abnahmeDatum || undefined,
+              fotos: formData.fotos,
               notizen: formData.notizen || undefined
             }
           : m
       );
       onUpdate({ ...projekt, maengel: aktualisiert });
     } else {
+      // Firmenname für Mangel-Nummer ermitteln
+      const firmaName = formData.istFachplaner
+        ? projekt.fachplaner.find(fp => fp.id === formData.verantwortlicherId)?.firma || 'XXX'
+        : projekt.fachfirmen.find(ff => ff.id === formData.verantwortlicherId)?.firma || 'XXX';
+
+      const mangelnummer = generiereMangelNummer(firmaName, projekt, formData.verantwortlicherId);
+
       const neu: Mangel = {
         id: generateId(),
         projektId: projekt.id,
-        mangelnummer: naechsteMangelnummer,
+        mangelnummer,
         datumFeststellung: new Date().toISOString().split('T')[0],
         beschreibung: formData.beschreibung,
         ortBauteil: formData.ortBauteil,
         fotos: formData.fotos,
-        fachfirmaId: formData.fachfirmaId,
+        verantwortlicherId: formData.verantwortlicherId,
+        istFachplaner: formData.istFachplaner,
         gewerkId: formData.gewerkId,
         fristBehebung: formData.fristBehebung,
         status: formData.status,
-        behebungsDatumIst: formData.behebungsDatumIst || undefined,
+        behobenDatum: formData.behobenDatum || undefined,
+        abnahmeDatum: formData.abnahmeDatum || undefined,
         notizen: formData.notizen || undefined
       };
       onUpdate({ ...projekt, maengel: [...projekt.maengel, neu] });
@@ -142,8 +201,11 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
     const aktualisiert = projekt.maengel.map(m => {
       if (m.id !== mangelId) return m;
       const updates: Partial<Mangel> = { status: neuerStatus };
-      if (neuerStatus === 'behoben' && !m.behebungsDatumIst) {
-        updates.behebungsDatumIst = new Date().toISOString().split('T')[0];
+      if (neuerStatus === 'behoben' && !m.behobenDatum) {
+        updates.behobenDatum = new Date().toISOString().split('T')[0];
+      }
+      if (neuerStatus === 'abgenommen' && !m.abnahmeDatum) {
+        updates.abnahmeDatum = new Date().toISOString().split('T')[0];
       }
       return { ...m, ...updates };
     });
@@ -156,11 +218,11 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
     }
   };
 
-  const getFachfirmaName = (id: string) => projekt.fachfirmen.find(ff => ff.id === id)?.firma || 'Unbekannt';
-  const getGewerkName = (id: string) => {
-    const g = projekt.gewerke.find(gw => gw.id === id);
-    return g ? `${g.dinNummer} - ${g.bezeichnung}` : 'Unbekannt';
-  };
+  // Alle Verantwortlichen für den Filter (Fachfirmen + Fachplaner)
+  const alleVerantwortlichen = [
+    ...projekt.fachfirmen.map(ff => ({ id: ff.id, name: ff.firma, typ: 'fachfirma' })),
+    ...projekt.fachplaner.map(fp => ({ id: fp.id, name: fp.firma, typ: 'fachplaner' }))
+  ];
 
   return (
     <div className="space-y-6">
@@ -213,10 +275,14 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
             </select>
           </div>
           <div>
-            <label className="label">Fachfirma</label>
-            <select value={filterFachfirma} onChange={e => setFilterFachfirma(e.target.value)} className="input-field">
+            <label className="label">Verantwortliche Firma</label>
+            <select value={filterVerantwortlicher} onChange={e => setFilterVerantwortlicher(e.target.value)} className="input-field">
               <option value="alle">Alle</option>
-              {projekt.fachfirmen.map(ff => <option key={ff.id} value={ff.id}>{ff.firma}</option>)}
+              {alleVerantwortlichen.map(v => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.typ === 'fachplaner' ? 'FP' : 'FF'})
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -236,9 +302,11 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Ampel</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Beschreibung</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Ort</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Fachfirma</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Verantwortliche Firma</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Frist</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Behoben</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Abnahme</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Fotos</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Aktionen</th>
               </tr>
@@ -252,7 +320,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
 
                 return (
                   <tr key={m.id} className="hover:bg-apleona-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium">#{m.mangelnummer}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{m.mangelnummer}</td>
                     <td className="px-4 py-3">
                       <span className={`w-4 h-4 rounded-full inline-block ${
                         ampel === 'gruen' ? 'bg-status-green' :
@@ -261,7 +329,10 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
                     </td>
                     <td className="px-4 py-3 text-sm max-w-xs truncate">{m.beschreibung}</td>
                     <td className="px-4 py-3 text-sm">{m.ortBauteil}</td>
-                    <td className="px-4 py-3 text-sm">{getFachfirmaName(m.fachfirmaId)}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {getVerantwortlicherName(m.verantwortlicherId, m.istFachplaner)}
+                      {m.istFachplaner && <span className="ml-1 text-xs text-apleona-gray-500">(FP)</span>}
+                    </td>
                     <td className="px-4 py-3 text-sm">
                       <span className={tage < 0 ? 'text-status-red font-medium' : ''}>
                         {formatDatum(m.fristBehebung)}
@@ -276,6 +347,12 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
                       >
                         {Object.entries(StatusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {m.behobenDatum ? formatDatum(m.behobenDatum) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {m.abnahmeDatum ? formatDatum(m.abnahmeDatum) : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       {m.fotos.length > 0 && (
@@ -314,7 +391,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
         <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeModal(false)}>
           <div className="modal-content p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-semibold mb-4">
-              {editMangel ? `Mangel #${editMangel.mangelnummer} bearbeiten` : `Neuer Mangel #${naechsteMangelnummer}`}
+              {editMangel ? `Mangel ${editMangel.mangelnummer} bearbeiten` : 'Neuer Mangel'}
             </h2>
 
             <div className="space-y-4">
@@ -339,10 +416,27 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Verantwortliche Fachfirma</label>
-                  <select value={formData.fachfirmaId} onChange={e => setFormData({ ...formData, fachfirmaId: e.target.value })} className="input-field">
+                  <label className="label">Verantwortliche Firma</label>
+                  <select
+                    value={formData.verantwortlicherId}
+                    onChange={e => handleVerantwortlicherChange(e.target.value)}
+                    className="input-field"
+                  >
                     <option value="">Bitte wählen...</option>
-                    {projekt.fachfirmen.map(ff => <option key={ff.id} value={ff.id}>{ff.firma}</option>)}
+                    {projekt.fachfirmen.length > 0 && (
+                      <optgroup label="Fachfirmen">
+                        {projekt.fachfirmen.map(ff => (
+                          <option key={ff.id} value={ff.id}>{ff.firma}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {projekt.fachplaner.length > 0 && (
+                      <optgroup label="Fachplaner">
+                        {projekt.fachplaner.map(fp => (
+                          <option key={fp.id} value={fp.id}>{fp.firma}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -351,19 +445,31 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="label">Status</label>
                   <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as MangelStatus })} className="input-field">
                     {Object.entries(StatusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
-                {(formData.status === 'behoben' || formData.status === 'abgenommen') && (
-                  <div>
-                    <label className="label">Behebungsdatum (Ist)</label>
-                    <input type="date" value={formData.behebungsDatumIst} onChange={e => setFormData({ ...formData, behebungsDatumIst: e.target.value })} className="input-field" />
-                  </div>
-                )}
+                <div>
+                  <label className="label">Behoben am</label>
+                  <input
+                    type="date"
+                    value={formData.behobenDatum}
+                    onChange={e => setFormData({ ...formData, behobenDatum: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="label">Abnahme am</label>
+                  <input
+                    type="date"
+                    value={formData.abnahmeDatum}
+                    onChange={e => setFormData({ ...formData, abnahmeDatum: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
               </div>
 
               {/* Fotos */}
@@ -397,7 +503,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
               <button onClick={() => setZeigeModal(false)} className="btn-secondary">Abbrechen</button>
               <button
                 onClick={handleSave}
-                disabled={!formData.beschreibung || !formData.fachfirmaId || !formData.gewerkId || !formData.fristBehebung}
+                disabled={!formData.beschreibung || !formData.verantwortlicherId || !formData.gewerkId || !formData.fristBehebung}
                 className="btn-primary disabled:opacity-50"
               >
                 Speichern

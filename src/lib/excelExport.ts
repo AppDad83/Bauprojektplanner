@@ -105,17 +105,23 @@ export const exportProjektZuExcel = (projekt: Projekt) => {
   XLSX.utils.book_append_sheet(workbook, wsNachtraege, 'Nachträge');
 
   // 6. Mängelliste
-  const maengelHeader = ['Nr.', 'Datum', 'Beschreibung', 'Ort', 'Fachfirma', 'Frist', 'Status', 'Behoben am'];
-  const maengelDaten = projekt.maengel.map(m => [
-    `#${m.mangelnummer}`,
-    formatDatum(m.datumFeststellung),
-    m.beschreibung,
-    m.ortBauteil,
-    projekt.fachfirmen.find(ff => ff.id === m.fachfirmaId)?.firma || '-',
-    formatDatum(m.fristBehebung),
-    m.status,
-    formatDatum(m.behebungsDatumIst)
-  ]);
+  const maengelHeader = ['Nr.', 'Datum', 'Beschreibung', 'Ort', 'Verantwortliche Firma', 'Frist', 'Status', 'Behoben am', 'Abnahme am'];
+  const maengelDaten = projekt.maengel.map(m => {
+    const verantwortlicher = m.istFachplaner
+      ? projekt.fachplaner.find(fp => fp.id === m.verantwortlicherId)?.firma
+      : projekt.fachfirmen.find(ff => ff.id === m.verantwortlicherId)?.firma;
+    return [
+      m.mangelnummer,
+      formatDatum(m.datumFeststellung),
+      m.beschreibung,
+      m.ortBauteil,
+      verantwortlicher || '-',
+      formatDatum(m.fristBehebung),
+      m.status,
+      formatDatum(m.behobenDatum),
+      formatDatum(m.abnahmeDatum)
+    ];
+  });
   const wsMaengel = XLSX.utils.aoa_to_sheet([maengelHeader, ...maengelDaten]);
   XLSX.utils.book_append_sheet(workbook, wsMaengel, 'Mängel');
 

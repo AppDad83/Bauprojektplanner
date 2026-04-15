@@ -273,16 +273,19 @@ export interface Nachtrag {
 export interface Mangel {
   id: string;
   projektId: string;
-  mangelnummer: number; // Automatisch vergeben
+  mangelnummer: string; // Format: "ABC-001" (3 Buchstaben Firma + laufende Nummer)
   datumFeststellung: string;
   beschreibung: string;
   ortBauteil: string;
   fotos: string[]; // Base64-encoded Bilder
-  fachfirmaId: string; // Verantwortliche Fachfirma
+  verantwortlicherId: string; // ID der Fachfirma ODER Fachplaner
+  istFachplaner: boolean; // true = Fachplaner, false = Fachfirma
+  fachfirmaId?: string; // DEPRECATED: für Migration behalten
   gewerkId: string;
   fristBehebung: string;
   status: MangelStatus;
-  behebungsDatumIst?: string;
+  behobenDatum?: string; // Datum der tatsächlichen Behebung
+  abnahmeDatum?: string; // Datum der Mangelabnahme durch Sachverständigen
   abnahmeId?: string; // Verknüpft mit Teil- oder Endabnahme
   notizen?: string;
 }

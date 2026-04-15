@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { AppDaten, Projekt, ProjektStatus, Fachfirma, BuergschaftDaten, RechnungSicherheiten } from '@/types';
+import { AppDaten, Projekt, ProjektStatus, Fachfirma, BuergschaftDaten, RechnungSicherheiten, Mangel } from '@/types';
 import { erstelleLeereAppDaten, getJsonDateiname, generateId } from './utils';
 
 // Migration: Alte Status-Werte (gruen/gelb/rot) auf neue konvertieren
@@ -86,6 +86,54 @@ function migriereFachfirmenDaten(daten: AppDaten): AppDaten {
   };
 }
 
+// Migration: Mängel-Daten (Mangelnummer-Format, Verantwortlicher, Datumsfelder)
+function migriereMaengelDaten(daten: AppDaten): AppDaten {
+  return {
+    ...daten,
+    projekte: daten.projekte.map(projekt => ({
+      ...projekt,
+      maengel: projekt.maengel.map(mangel => {
+        const alteMangel = mangel as Mangel & {
+          behebungsDatumIst?: string;
+          mangelnummer: string | number;
+        };
+
+        // Wenn bereits migriert (mangelnummer ist String mit Bindestrich), überspringen
+        if (typeof alteMangel.mangelnummer === 'string' && alteMangel.mangelnummer.includes('-') && alteMangel.verantwortlicherId) {
+          // Nur behobenDatum-Umbenennung prüfen
+          if (alteMangel.behebungsDatumIst && !alteMangel.behobenDatum) {
+            return {
+              ...mangel,
+              behobenDatum: alteMangel.behebungsDatumIst,
+              behebungsDatumIst: undefined
+            } as Mangel;
+          }
+          return mangel;
+        }
+
+        // Alte fachfirmaId migrieren
+        const fachfirma = projekt.fachfirmen.find(ff => ff.id === alteMangel.fachfirmaId);
+        const firmaName = fachfirma?.firma || 'XXX';
+        const prefix = firmaName.substring(0, 3).toUpperCase();
+
+        // Mangelnummer im neuen Format generieren
+        const alteNummer = typeof alteMangel.mangelnummer === 'number'
+          ? alteMangel.mangelnummer
+          : parseInt(String(alteMangel.mangelnummer)) || 1;
+
+        return {
+          ...mangel,
+          mangelnummer: `${prefix}-${String(alteNummer).padStart(3, '0')}`,
+          verantwortlicherId: alteMangel.fachfirmaId || '',
+          istFachplaner: false,
+          behobenDatum: alteMangel.behebungsDatumIst || alteMangel.behobenDatum,
+          behebungsDatumIst: undefined // Legacy-Feld entfernen
+        } as Mangel;
+      })
+    }))
+  };
+}
+
 // Hilfsfunktion: Alte Bürgschaftsstruktur auf neue migrieren
 function migriereBuergschaft(alteBuergschaft: BuergschaftDaten | { urkundeErhalten?: boolean; urkundeZurueckgesendet?: boolean; datum?: string } | undefined, typ: 'vertragserfuellung' | 'gewaehrleistung'): BuergschaftDaten {
   if (!alteBuergschaft) {
@@ -165,6 +213,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           let migriert = migriereProjektStatus(parsed);
           // Migration: Fachfirmen-Daten migrieren
           migriert = migriereFachfirmenDaten(migriert);
+          // Migration: Mängel-Daten migrieren
+          migriert = migriereMaengelDaten(migriert);
 
           // Versionswarnung prüfen
           if (letztesSpeicherdatum) {

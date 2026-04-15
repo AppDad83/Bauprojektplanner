@@ -192,7 +192,7 @@ export const sammleFristwarnungen = (projekt: Projekt): FristWarnung[] => {
         projektId: projekt.id,
         projektName: projekt.name,
         typ: 'mangel',
-        beschreibung: `Mangel #${mangel.mangelnummer}: ${mangel.beschreibung.substring(0, 50)}...`,
+        beschreibung: `Mangel ${mangel.mangelnummer}: ${mangel.beschreibung.substring(0, 50)}...`,
         fristDatum: mangel.fristBehebung,
         ampel: berechneAmpelFuerFrist(mangel.fristBehebung)
       });
