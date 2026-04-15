@@ -300,7 +300,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Nr.</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Ampel</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Beschreibung</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase w-[180px]">Beschreibung</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Ort</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Verantwortliche Firma</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Frist</th>
@@ -327,7 +327,7 @@ const TabMaengel: React.FC<Props> = ({ projekt, onUpdate }) => {
                         ampel === 'gelb' ? 'bg-status-yellow' : 'bg-status-red'
                       }`} />
                     </td>
-                    <td className="px-4 py-3 text-sm max-w-xs truncate">{m.beschreibung}</td>
+                    <td className="px-4 py-3 text-sm max-w-[180px] break-words">{m.beschreibung}</td>
                     <td className="px-4 py-3 text-sm">{m.ortBauteil}</td>
                     <td className="px-4 py-3 text-sm">
                       {getVerantwortlicherName(m.verantwortlicherId, m.istFachplaner)}
