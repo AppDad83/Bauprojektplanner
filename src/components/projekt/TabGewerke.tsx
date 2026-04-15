@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Projekt, Gewerk, DIN_GEWERKE, Teilabnahme } from '@/types';
-import { formatDatum, generateId, berechneGewaehrleistungsfrist } from '@/lib/utils';
+import { formatDatum, generateId, berechneGewaehrleistungsfrist, formatWaehrung } from '@/lib/utils';
 
 interface Props {
   projekt: Projekt;
@@ -15,13 +15,15 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [formData, setFormData] = useState({
     dinNummer: '',
     bezeichnung: '',
+    kostenschaetzung: '',
+    kostenberechnung: '',
     endabnahmeDatum: '',
     notizen: ''
   });
 
   const handleNeuesGewerk = () => {
     setEditGewerk(null);
-    setFormData({ dinNummer: '', bezeichnung: '', endabnahmeDatum: '', notizen: '' });
+    setFormData({ dinNummer: '', bezeichnung: '', kostenschaetzung: '', kostenberechnung: '', endabnahmeDatum: '', notizen: '' });
     setZeigeModal(true);
   };
 
@@ -30,6 +32,8 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
     setFormData({
       dinNummer: gewerk.dinNummer,
       bezeichnung: gewerk.bezeichnung,
+      kostenschaetzung: gewerk.kostenschaetzung?.toString() || '',
+      kostenberechnung: gewerk.kostenberechnung?.toString() || '',
       endabnahmeDatum: gewerk.endabnahmeDatum || '',
       notizen: gewerk.notizen || ''
     });
@@ -52,6 +56,9 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
       ? berechneGewaehrleistungsfrist(formData.endabnahmeDatum)
       : undefined;
 
+    const kostenschaetzung = formData.kostenschaetzung ? parseFloat(formData.kostenschaetzung) : undefined;
+    const kostenberechnung = formData.kostenberechnung ? parseFloat(formData.kostenberechnung) : undefined;
+
     if (editGewerk) {
       const aktualisiert = projekt.gewerke.map(g =>
         g.id === editGewerk.id
@@ -59,6 +66,8 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
               ...g,
               dinNummer: formData.dinNummer,
               bezeichnung: formData.bezeichnung,
+              kostenschaetzung,
+              kostenberechnung,
               endabnahmeDatum: formData.endabnahmeDatum || undefined,
               gewaehrleistungsfristEnde,
               notizen: formData.notizen || undefined
@@ -72,6 +81,8 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
         projektId: projekt.id,
         dinNummer: formData.dinNummer,
         bezeichnung: formData.bezeichnung,
+        kostenschaetzung,
+        kostenberechnung,
         endabnahmeDatum: formData.endabnahmeDatum || undefined,
         teilabnahmen: [],
         gewaehrleistungsfristEnde,
@@ -132,6 +143,9 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">DIN</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Bezeichnung</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-white uppercase">Kostenschätzung</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-white uppercase">Kostenberechnung</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-white uppercase">Differenz</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Endabnahme</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Gewährl. bis</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase">Teilabnahmen</th>
@@ -139,10 +153,23 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-apleona-gray-200">
-              {projekt.gewerke.map(gewerk => (
+              {projekt.gewerke.map(gewerk => {
+                const differenz = (gewerk.kostenberechnung ?? 0) - (gewerk.kostenschaetzung ?? 0);
+                const hatKosten = gewerk.kostenschaetzung !== undefined || gewerk.kostenberechnung !== undefined;
+
+                return (
                 <tr key={gewerk.id} className="hover:bg-apleona-gray-50">
                   <td className="px-4 py-3 text-sm font-medium">{gewerk.dinNummer}</td>
                   <td className="px-4 py-3 text-sm">{gewerk.bezeichnung}</td>
+                  <td className="px-4 py-3 text-sm text-right">
+                    {gewerk.kostenschaetzung !== undefined ? formatWaehrung(gewerk.kostenschaetzung) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-right">
+                    {gewerk.kostenberechnung !== undefined ? formatWaehrung(gewerk.kostenberechnung) : '-'}
+                  </td>
+                  <td className={`px-4 py-3 text-sm text-right ${hatKosten && differenz > 0 ? 'text-status-red font-medium' : hatKosten && differenz < 0 ? 'text-status-green font-medium' : ''}`}>
+                    {hatKosten ? formatWaehrung(differenz) : '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm">
                     {gewerk.endabnahmeDatum ? (
                       <span className="badge-success">{formatDatum(gewerk.endabnahmeDatum)}</span>
@@ -189,7 +216,8 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
@@ -240,6 +268,43 @@ const TabGewerke: React.FC<Props> = ({ projekt, onUpdate }) => {
                     className="input-field"
                     placeholder="z.B. Starkstromanlagen"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="label">Kostenschätzung (netto)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.kostenschaetzung}
+                    onChange={e => setFormData({ ...formData, kostenschaetzung: e.target.value })}
+                    className="input-field"
+                    placeholder="0,00 €"
+                  />
+                </div>
+                <div>
+                  <label className="label">Kostenberechnung (netto)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.kostenberechnung}
+                    onChange={e => setFormData({ ...formData, kostenberechnung: e.target.value })}
+                    className="input-field"
+                    placeholder="0,00 €"
+                  />
+                </div>
+                <div>
+                  <label className="label">Differenz</label>
+                  <div className={`input-field bg-apleona-gray-100 ${
+                    (parseFloat(formData.kostenberechnung) || 0) - (parseFloat(formData.kostenschaetzung) || 0) > 0
+                      ? 'text-status-red'
+                      : (parseFloat(formData.kostenberechnung) || 0) - (parseFloat(formData.kostenschaetzung) || 0) < 0
+                        ? 'text-status-green'
+                        : ''
+                  }`}>
+                    {formatWaehrung((parseFloat(formData.kostenberechnung) || 0) - (parseFloat(formData.kostenschaetzung) || 0))}
+                  </div>
                 </div>
               </div>
 

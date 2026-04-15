@@ -197,6 +197,8 @@ export interface Gewerk {
   projektId: string;
   dinNummer: string;
   bezeichnung: string;
+  kostenschaetzung?: number; // Netto €
+  kostenberechnung?: number; // Netto €
   endabnahmeDatum?: string;
   teilabnahmen: Teilabnahme[];
   gewaehrleistungsfristEnde?: string; // Berechnet aus Endabnahme + 5 Jahre
@@ -414,4 +416,18 @@ export const DIN_GEWERKE = [
   { din: '500', bezeichnung: 'Außenanlagen' },
   { din: '600', bezeichnung: 'Ausstattung und Kunstwerke' },
   { din: '700', bezeichnung: 'Baunebenkosten' },
+  { din: '710', bezeichnung: 'Bauherrenaufgaben' },
+  { din: '720', bezeichnung: 'Vorbereitung der Objektplanung' },
+  { din: '730', bezeichnung: 'Architekten- und Ingenieurleistungen' },
+  { din: '740', bezeichnung: 'Gutachten und Beratung' },
+  { din: '750', bezeichnung: 'Künstlerische Leistungen' },
+  { din: '760', bezeichnung: 'Finanzierungskosten' },
+  { din: '770', bezeichnung: 'Allgemeine Baunebenkosten' },
+  { din: '790', bezeichnung: 'Sonstige Baunebenkosten' },
+  { din: '800', bezeichnung: 'Finanzierung' },
+  { din: '810', bezeichnung: 'Finanzierungsbeschaffung' },
+  { din: '820', bezeichnung: 'Fremdkapitalzinsen' },
+  { din: '830', bezeichnung: 'Eigenkapitalzinsen' },
+  { din: '890', bezeichnung: 'Sonstige Finanzierungskosten' },
+  { din: '999', bezeichnung: 'Risiko' },
 ] as const;
