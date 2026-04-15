@@ -480,12 +480,51 @@ const TabFachfirmen: React.FC<Props> = ({ projekt, onUpdate }) => {
     onUpdate({ ...projekt, fachfirmen: aktualisiert });
   };
 
+  // Prüft ob ein Mangel bereits einer anderen Firma zugeordnet ist
+  const findeMangelZuordnung = (mangelId: string): string | null => {
+    // Prüfe alle Fachfirmen-Abnahmen (außer der aktuellen)
+    for (const ff of projekt.fachfirmen) {
+      if (ff.id === aktiveFachfirmaId) continue; // Aktuelle Firma überspringen
+      for (const abnahme of (ff.abnahmen || [])) {
+        if (abnahme.maengelIds.includes(mangelId)) {
+          return `Fachfirma "${ff.firma}"`;
+        }
+      }
+    }
+    // Prüfe alle Fachplaner-Abnahmen
+    for (const fp of projekt.fachplaner) {
+      for (const abnahme of (fp.abnahmen || [])) {
+        if (abnahme.maengelIds.includes(mangelId)) {
+          return `Fachplaner "${fp.firma}"`;
+        }
+      }
+    }
+    return null;
+  };
+
   const toggleMangelSelection = (mangelId: string) => {
+    // Wenn Mangel abgewählt wird, keine Prüfung nötig
+    if (abnahmeForm.maengelIds.includes(mangelId)) {
+      setAbnahmeForm(prev => ({
+        ...prev,
+        maengelIds: prev.maengelIds.filter(id => id !== mangelId)
+      }));
+      return;
+    }
+
+    // Prüfe ob Mangel bereits zugeordnet
+    const zuordnung = findeMangelZuordnung(mangelId);
+    if (zuordnung) {
+      const mangel = projekt.maengel.find(m => m.id === mangelId);
+      const bestaetigt = window.confirm(
+        `Mangel #${mangel?.mangelnummer} ist bereits ${zuordnung} zugeordnet.\n\nTrotzdem dieser Fachfirma zuordnen?`
+      );
+      if (!bestaetigt) return;
+    }
+
     setAbnahmeForm(prev => ({
       ...prev,
-      maengelIds: prev.maengelIds.includes(mangelId)
-        ? prev.maengelIds.filter(id => id !== mangelId)
-        : [...prev.maengelIds, mangelId]
+      maengelIds: [...prev.maengelIds, mangelId]
     }));
   };
 
@@ -924,7 +963,11 @@ const TabFachfirmen: React.FC<Props> = ({ projekt, onUpdate }) => {
                                         <span className="text-xs font-medium text-apleona-gray-500">Mängel ({verknuepfteMaengel.length}):</span>
                                         <div className="flex flex-wrap gap-1 mt-1">
                                           {verknuepfteMaengel.map(m => (
-                                            <span key={m.id} className={`text-xs px-2 py-0.5 rounded ${m.status === 'behoben' || m.status === 'abgenommen' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                            <span
+                                              key={m.id}
+                                              title={m.beschreibung}
+                                              className={`text-xs px-2 py-0.5 rounded cursor-help ${m.status === 'behoben' || m.status === 'abgenommen' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                                            >
                                               #{m.mangelnummer}
                                             </span>
                                           ))}
