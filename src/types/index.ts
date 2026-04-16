@@ -19,7 +19,13 @@ export type MangelStatus = 'offen' | 'in_bearbeitung' | 'behoben' | 'abgenommen'
 export type NachtragsStatus = 'gestellt' | 'in_pruefung' | 'genehmigt' | 'abgelehnt' | 'teilweise_genehmigt';
 export type RechnungsTyp = 'anzahlung' | 'teilrechnung' | 'schlussrechnung';
 export type AngebotStatus = 'verschickt' | 'freigegeben' | 'beauftragt' | 'abgerechnet' | 'abgelehnt';
-export type StakeholderTyp = 'intern' | 'extern';
+export type StakeholderKategorie =
+  | 'bauherr'
+  | 'gebaeudeverwaltung'
+  | 'sachverstaendiger'
+  | 'behoerde'
+  | 'mieter'
+  | 'sonstige';
 
 // AHO-Leistungsphasen (fest definiert)
 export const AHO_PHASEN = [
@@ -124,7 +130,7 @@ export interface Stakeholder {
   rolle: string;
   telefon?: string;
   email?: string;
-  typ: StakeholderTyp;
+  kategorie: StakeholderKategorie;
 }
 
 export interface VergabeEmpfehlung {
