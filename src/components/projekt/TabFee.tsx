@@ -23,6 +23,11 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [feeGrund, setFeeGrund] = useState('');
   const [gueltigAbDatum, setGueltigAbDatum] = useState(new Date().toISOString().split('T')[0]);
 
+  // States für Bearbeiten/Löschen
+  const [zuBearbeitendeFeeRechnung, setZuBearbeitendeFeeRechnung] = useState<FeeRechnung | null>(null);
+  const [zeigeLoeschenDialog, setZeigeLoeschenDialog] = useState(false);
+  const [zuLoeschendeFeeRechnungId, setZuLoeschendeFeeRechnungId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     rechnungsnummer: '',
     datum: '',
@@ -54,9 +59,9 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
     )
   ];
 
-  // Initialisiere feeProRechnung wenn Modal geöffnet wird
+  // Initialisiere feeProRechnung wenn Modal geöffnet wird (nur für neue Rechnungen)
   useEffect(() => {
-    if (zeigeModal) {
+    if (zeigeModal && !zuBearbeitendeFeeRechnung) {
       const initial: { [id: string]: number } = {};
       alleRechnungen.forEach(r => {
         initial[r.id] = projekt.feePercent;
@@ -65,16 +70,18 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
       setGlobalerFeeSatz(projekt.feePercent);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zeigeModal]);
+  }, [zeigeModal, zuBearbeitendeFeeRechnung]);
 
   // Nur freigegebene und nicht-abgerechnete für Auswahl
+  // Bei Bearbeitung: auch die Rechnungen der zu bearbeitenden Fee-Rechnung anzeigen
   const auswaehlbareRechnungen = alleRechnungen.filter(r =>
-    !r.bereitsInFeeAbgerechnet && r.freigegeben
+    (!r.bereitsInFeeAbgerechnet || (zuBearbeitendeFeeRechnung && zuBearbeitendeFeeRechnung.bezugRechnungIds.includes(r.id))) && r.freigegeben
   );
 
-  // Bereits abgerechnete Rechnungen
+  // Bereits abgerechnete Rechnungen (bei Bearbeitung: nicht die der zu bearbeitenden Fee-Rechnung)
   const abgerechneteRechnungen = alleRechnungen.filter(r =>
-    r.bereitsInFeeAbgerechnet && r.freigegeben
+    r.bereitsInFeeAbgerechnet && r.freigegeben &&
+    !(zuBearbeitendeFeeRechnung && zuBearbeitendeFeeRechnung.bezugRechnungIds.includes(r.id))
   );
 
   const summeNichtAbgerechnet = auswaehlbareRechnungen.reduce((s, r) => s + r.betragNetto, 0);
@@ -100,58 +107,6 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
     setZeigeFeeModal(false);
     setFeeGrund('');
     setGueltigAbDatum(new Date().toISOString().split('T')[0]);
-  };
-
-  const handleRechnungErstellen = () => {
-    if (formData.bezugRechnungIds.length === 0) return;
-
-    const bezugRechnungen = alleRechnungen.filter(r => formData.bezugRechnungIds.includes(r.id));
-
-    // Berechne Betrag basierend auf individuellen Fee-Sätzen
-    let betragNetto = 0;
-    const feePerRechnungMap: { [rechnungId: string]: number } = {};
-
-    bezugRechnungen.forEach(r => {
-      const feeSatz = feeProRechnung[r.id] ?? projekt.feePercent;
-      feePerRechnungMap[r.id] = feeSatz;
-      betragNetto += r.betragNetto * (feeSatz / 100);
-    });
-
-    const neueRechnung: FeeRechnung = {
-      id: generateId(),
-      projektId: projekt.id,
-      rechnungsnummer: formData.rechnungsnummer,
-      datum: formData.datum,
-      betragNetto,
-      bezugRechnungIds: formData.bezugRechnungIds,
-      feePerRechnung: feePerRechnungMap,
-      feePercent: projekt.feePercent, // Legacy/Fallback
-      notizen: formData.notizen || undefined
-    };
-
-    // Markiere bezogene Rechnungen als abgerechnet
-    const aktualisiert = { ...projekt };
-    aktualisiert.fachplaner = aktualisiert.fachplaner.map(fp => ({
-      ...fp,
-      rechnungen: fp.rechnungen.map(r =>
-        formData.bezugRechnungIds.includes(r.id)
-          ? { ...r, bereitsInFeeAbgerechnet: true }
-          : r
-      )
-    }));
-    aktualisiert.fachfirmen = aktualisiert.fachfirmen.map(ff => ({
-      ...ff,
-      rechnungen: ff.rechnungen.map(r =>
-        formData.bezugRechnungIds.includes(r.id)
-          ? { ...r, bereitsInFeeAbgerechnet: true }
-          : r
-      )
-    }));
-    aktualisiert.feeRechnungen = [...aktualisiert.feeRechnungen, neueRechnung];
-
-    onUpdate(aktualisiert);
-    setZeigeModal(false);
-    setFormData({ rechnungsnummer: '', datum: '', bezugRechnungIds: [], notizen: '' });
   };
 
   const toggleBezugRechnung = (rechnungId: string) => {
@@ -196,6 +151,161 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
 
   const getBezugRechnungenFuerFeeRechnung = (feeRechnung: FeeRechnung) => {
     return alleRechnungen.filter(r => feeRechnung.bezugRechnungIds.includes(r.id));
+  };
+
+  // Fee-Rechnung löschen
+  const handleFeeRechnungLoeschen = () => {
+    if (!zuLoeschendeFeeRechnungId) return;
+
+    const feeRechnung = projekt.feeRechnungen.find(fr => fr.id === zuLoeschendeFeeRechnungId);
+    if (!feeRechnung) return;
+
+    const aktualisiert = { ...projekt };
+
+    // Bezogene Rechnungen wieder freigeben
+    aktualisiert.fachplaner = aktualisiert.fachplaner.map(fp => ({
+      ...fp,
+      rechnungen: fp.rechnungen.map(r =>
+        feeRechnung.bezugRechnungIds.includes(r.id)
+          ? { ...r, bereitsInFeeAbgerechnet: false }
+          : r
+      )
+    }));
+    aktualisiert.fachfirmen = aktualisiert.fachfirmen.map(ff => ({
+      ...ff,
+      rechnungen: ff.rechnungen.map(r =>
+        feeRechnung.bezugRechnungIds.includes(r.id)
+          ? { ...r, bereitsInFeeAbgerechnet: false }
+          : r
+      )
+    }));
+
+    // Fee-Rechnung entfernen
+    aktualisiert.feeRechnungen = aktualisiert.feeRechnungen.filter(fr => fr.id !== zuLoeschendeFeeRechnungId);
+
+    onUpdate(aktualisiert);
+    setZeigeLoeschenDialog(false);
+    setZuLoeschendeFeeRechnungId(null);
+  };
+
+  // Fee-Rechnung bearbeiten starten
+  const handleBearbeitenStarten = (feeRechnung: FeeRechnung) => {
+    setZuBearbeitendeFeeRechnung(feeRechnung);
+    setFormData({
+      rechnungsnummer: feeRechnung.rechnungsnummer,
+      datum: feeRechnung.datum,
+      bezugRechnungIds: [...feeRechnung.bezugRechnungIds],
+      notizen: feeRechnung.notizen || ''
+    });
+    // Fee-Sätze initialisieren
+    const feeWerte: { [id: string]: number } = {};
+    alleRechnungen.forEach(r => {
+      if (feeRechnung.feePerRechnung && feeRechnung.feePerRechnung[r.id] !== undefined) {
+        feeWerte[r.id] = feeRechnung.feePerRechnung[r.id];
+      } else if (feeRechnung.bezugRechnungIds.includes(r.id)) {
+        feeWerte[r.id] = feeRechnung.feePercent;
+      } else {
+        feeWerte[r.id] = projekt.feePercent;
+      }
+    });
+    setFeeProRechnung(feeWerte);
+    setGlobalerFeeSatz(projekt.feePercent);
+    setZeigeModal(true);
+  };
+
+  // Fee-Rechnung speichern (neu oder bearbeiten)
+  const handleRechnungSpeichern = () => {
+    if (formData.bezugRechnungIds.length === 0) return;
+
+    const bezugRechnungen = alleRechnungen.filter(r => formData.bezugRechnungIds.includes(r.id));
+
+    // Berechne Betrag basierend auf individuellen Fee-Sätzen
+    let betragNetto = 0;
+    const feePerRechnungMap: { [rechnungId: string]: number } = {};
+
+    bezugRechnungen.forEach(r => {
+      const feeSatz = feeProRechnung[r.id] ?? projekt.feePercent;
+      feePerRechnungMap[r.id] = feeSatz;
+      betragNetto += r.betragNetto * (feeSatz / 100);
+    });
+
+    const aktualisiert = { ...projekt };
+
+    if (zuBearbeitendeFeeRechnung) {
+      // Bearbeiten: Alte bezogene Rechnungen freigeben
+      const alteIds = zuBearbeitendeFeeRechnung.bezugRechnungIds;
+      aktualisiert.fachplaner = aktualisiert.fachplaner.map(fp => ({
+        ...fp,
+        rechnungen: fp.rechnungen.map(r =>
+          alteIds.includes(r.id) && !formData.bezugRechnungIds.includes(r.id)
+            ? { ...r, bereitsInFeeAbgerechnet: false }
+            : r
+        )
+      }));
+      aktualisiert.fachfirmen = aktualisiert.fachfirmen.map(ff => ({
+        ...ff,
+        rechnungen: ff.rechnungen.map(r =>
+          alteIds.includes(r.id) && !formData.bezugRechnungIds.includes(r.id)
+            ? { ...r, bereitsInFeeAbgerechnet: false }
+            : r
+        )
+      }));
+    }
+
+    // Neue bezogene Rechnungen sperren
+    aktualisiert.fachplaner = aktualisiert.fachplaner.map(fp => ({
+      ...fp,
+      rechnungen: fp.rechnungen.map(r =>
+        formData.bezugRechnungIds.includes(r.id)
+          ? { ...r, bereitsInFeeAbgerechnet: true }
+          : r
+      )
+    }));
+    aktualisiert.fachfirmen = aktualisiert.fachfirmen.map(ff => ({
+      ...ff,
+      rechnungen: ff.rechnungen.map(r =>
+        formData.bezugRechnungIds.includes(r.id)
+          ? { ...r, bereitsInFeeAbgerechnet: true }
+          : r
+      )
+    }));
+
+    if (zuBearbeitendeFeeRechnung) {
+      // Bestehende Fee-Rechnung aktualisieren
+      aktualisiert.feeRechnungen = aktualisiert.feeRechnungen.map(fr =>
+        fr.id === zuBearbeitendeFeeRechnung.id
+          ? {
+              ...fr,
+              rechnungsnummer: formData.rechnungsnummer,
+              datum: formData.datum,
+              betragNetto,
+              bezugRechnungIds: formData.bezugRechnungIds,
+              feePerRechnung: feePerRechnungMap,
+              feePercent: projekt.feePercent,
+              notizen: formData.notizen || undefined
+            }
+          : fr
+      );
+    } else {
+      // Neue Fee-Rechnung erstellen
+      const neueRechnung: FeeRechnung = {
+        id: generateId(),
+        projektId: projekt.id,
+        rechnungsnummer: formData.rechnungsnummer,
+        datum: formData.datum,
+        betragNetto,
+        bezugRechnungIds: formData.bezugRechnungIds,
+        feePerRechnung: feePerRechnungMap,
+        feePercent: projekt.feePercent,
+        notizen: formData.notizen || undefined
+      };
+      aktualisiert.feeRechnungen = [...aktualisiert.feeRechnungen, neueRechnung];
+    }
+
+    onUpdate(aktualisiert);
+    setZeigeModal(false);
+    setZuBearbeitendeFeeRechnung(null);
+    setFormData({ rechnungsnummer: '', datum: '', bezugRechnungIds: [], notizen: '' });
   };
 
   // Historien-Anzeige mit gueltigAb
@@ -292,21 +402,48 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-apleona-gray-200">
-                    <p className="text-sm text-apleona-gray-600 mb-2">Bezogene Rechnungen ({bezugRechnungen.length}):</p>
-                    <div className="flex flex-wrap gap-2">
-                      {bezugRechnungen.slice(0, 5).map(br => (
-                        <span key={br.id} className="text-xs bg-apleona-gray-100 px-2 py-1 rounded">
-                          {br.rechnungsnummer} ({br.beteiligterName})
-                          {fr.feePerRechnung && fr.feePerRechnung[br.id] && (
-                            <span className="ml-1 text-apleona-gray-500">@ {fr.feePerRechnung[br.id]}%</span>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm text-apleona-gray-600 mb-2">Bezogene Rechnungen ({bezugRechnungen.length}):</p>
+                        <div className="flex flex-wrap gap-2">
+                          {bezugRechnungen.slice(0, 5).map(br => (
+                            <span key={br.id} className="text-xs bg-apleona-gray-100 px-2 py-1 rounded">
+                              {br.rechnungsnummer} ({br.beteiligterName})
+                              {fr.feePerRechnung && fr.feePerRechnung[br.id] && (
+                                <span className="ml-1 text-apleona-gray-500">@ {fr.feePerRechnung[br.id]}%</span>
+                              )}
+                            </span>
+                          ))}
+                          {bezugRechnungen.length > 5 && (
+                            <span className="text-xs text-apleona-gray-500">
+                              +{bezugRechnungen.length - 5} weitere
+                            </span>
                           )}
-                        </span>
-                      ))}
-                      {bezugRechnungen.length > 5 && (
-                        <span className="text-xs text-apleona-gray-500">
-                          +{bezugRechnungen.length - 5} weitere
-                        </span>
-                      )}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <button
+                          onClick={() => handleBearbeitenStarten(fr)}
+                          className="text-apleona-navy hover:text-apleona-navy-dark"
+                          title="Bearbeiten"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setZuLoeschendeFeeRechnungId(fr.id);
+                            setZeigeLoeschenDialog(true);
+                          }}
+                          className="text-apleona-red hover:text-apleona-red-dark"
+                          title="Löschen"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -412,11 +549,19 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
         </div>
       )}
 
-      {/* Fee-Rechnung erstellen Modal */}
+      {/* Fee-Rechnung erstellen/bearbeiten Modal */}
       {zeigeModal && (
-        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setZeigeModal(false)}>
+        <div className="modal-overlay" onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            setZeigeModal(false);
+            setZuBearbeitendeFeeRechnung(null);
+            setFormData({ rechnungsnummer: '', datum: '', bezugRechnungIds: [], notizen: '' });
+          }
+        }}>
           <div className="modal-content p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-semibold mb-4">Neue Fee-Rechnung erstellen</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              {zuBearbeitendeFeeRechnung ? 'Fee-Rechnung bearbeiten' : 'Neue Fee-Rechnung erstellen'}
+            </h2>
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -598,13 +743,53 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
-              <button onClick={() => setZeigeModal(false)} className="btn-secondary">Abbrechen</button>
+              <button onClick={() => {
+                setZeigeModal(false);
+                setZuBearbeitendeFeeRechnung(null);
+                setFormData({ rechnungsnummer: '', datum: '', bezugRechnungIds: [], notizen: '' });
+              }} className="btn-secondary">Abbrechen</button>
               <button
-                onClick={handleRechnungErstellen}
+                onClick={handleRechnungSpeichern}
                 disabled={!formData.rechnungsnummer || !formData.datum || formData.bezugRechnungIds.length === 0}
                 className="btn-primary disabled:opacity-50"
               >
-                Rechnung erstellen
+                {zuBearbeitendeFeeRechnung ? 'Speichern' : 'Rechnung erstellen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Löschen-Bestätigungsdialog */}
+      {zeigeLoeschenDialog && zuLoeschendeFeeRechnungId && (
+        <div className="modal-overlay" onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            setZeigeLoeschenDialog(false);
+            setZuLoeschendeFeeRechnungId(null);
+          }
+        }}>
+          <div className="modal-content p-6 max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-semibold mb-4">Fee-Rechnung löschen?</h2>
+            <p className="text-apleona-gray-600 mb-6">
+              Fee-Rechnung <strong>{projekt.feeRechnungen.find(fr => fr.id === zuLoeschendeFeeRechnungId)?.rechnungsnummer}</strong> wirklich löschen?
+              <br /><br />
+              Die bezogenen Rechnungen werden wieder für neue Fee-Rechnungen verfügbar.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setZeigeLoeschenDialog(false);
+                  setZuLoeschendeFeeRechnungId(null);
+                }}
+                className="btn-secondary"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleFeeRechnungLoeschen}
+                className="btn-primary bg-status-red hover:bg-red-700"
+              >
+                Löschen
               </button>
             </div>
           </div>
