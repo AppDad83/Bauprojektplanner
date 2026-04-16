@@ -46,7 +46,8 @@ export interface BudgetHistorieEintrag {
 
 export interface FeeHistorieEintrag {
   id: string;
-  datum: string;
+  datum: string;        // Erstellungsdatum
+  gueltigAb: string;    // Ab wann gilt dieser Satz
   feePercent: number;
   grund?: string;
 }
@@ -304,6 +305,9 @@ export interface FeeRechnung {
   betragNetto: number;
   // IDs der Fachplaner-/Fachfirmen-Rechnungen, auf die sich diese Fee bezieht
   bezugRechnungIds: string[];
+  // Individueller Fee-Satz pro Rechnung (Rechnungs-ID → Fee-Prozent)
+  feePerRechnung: { [rechnungId: string]: number };
+  // Legacy/Fallback Fee-Satz
   feePercent: number;
   notizen?: string;
 }

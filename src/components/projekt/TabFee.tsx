@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Projekt, FeeRechnung, FeeHistorieEintrag, Rechnung } from '@/types';
 import { formatDatum, formatWaehrung, generateId } from '@/lib/utils';
 
@@ -9,11 +9,19 @@ interface Props {
   onUpdate: (projekt: Projekt) => void;
 }
 
+// Erweiterte Rechnung mit Metadaten
+interface ErweiterteRechnung extends Rechnung {
+  beteiligterName: string;
+  beteiligterTyp: string;
+  beteiligterId: string;
+}
+
 const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [zeigeModal, setZeigeModal] = useState(false);
   const [zeigeFeeModal, setZeigeFeeModal] = useState(false);
   const [neuerFeePercent, setNeuerFeePercent] = useState(projekt.feePercent.toString());
   const [feeGrund, setFeeGrund] = useState('');
+  const [gueltigAbDatum, setGueltigAbDatum] = useState(new Date().toISOString().split('T')[0]);
 
   const [formData, setFormData] = useState({
     rechnungsnummer: '',
@@ -22,30 +30,54 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
     notizen: ''
   });
 
+  // Individuelle Fee-Sätze pro Rechnung im Modal
+  const [feeProRechnung, setFeeProRechnung] = useState<{ [id: string]: number }>({});
+  const [globalerFeeSatz, setGlobalerFeeSatz] = useState(projekt.feePercent);
+
   // Alle Rechnungen von Fachplanern und Fachfirmen
-  const alleRechnungen: (Rechnung & { beteiligterName: string; beteiligterTyp: string })[] = [
+  const alleRechnungen: ErweiterteRechnung[] = [
     ...projekt.fachplaner.flatMap(fp =>
       fp.rechnungen.map(r => ({
         ...r,
         beteiligterName: fp.firma,
-        beteiligterTyp: 'Fachplaner'
+        beteiligterTyp: 'Fachplaner',
+        beteiligterId: fp.id
       }))
     ),
     ...projekt.fachfirmen.flatMap(ff =>
       ff.rechnungen.map(r => ({
         ...r,
         beteiligterName: ff.firma,
-        beteiligterTyp: 'Fachfirma'
+        beteiligterTyp: 'Fachfirma',
+        beteiligterId: ff.id
       }))
     )
   ];
 
-  // Noch nicht in Fee abgerechnete Rechnungen
-  const nichtAbgerechneteRechnungen = alleRechnungen.filter(r =>
+  // Initialisiere feeProRechnung wenn Modal geöffnet wird
+  useEffect(() => {
+    if (zeigeModal) {
+      const initial: { [id: string]: number } = {};
+      alleRechnungen.forEach(r => {
+        initial[r.id] = projekt.feePercent;
+      });
+      setFeeProRechnung(initial);
+      setGlobalerFeeSatz(projekt.feePercent);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zeigeModal]);
+
+  // Nur freigegebene und nicht-abgerechnete für Auswahl
+  const auswaehlbareRechnungen = alleRechnungen.filter(r =>
     !r.bereitsInFeeAbgerechnet && r.freigegeben
   );
 
-  const summeNichtAbgerechnet = nichtAbgerechneteRechnungen.reduce((s, r) => s + r.betragNetto, 0);
+  // Bereits abgerechnete Rechnungen
+  const abgerechneteRechnungen = alleRechnungen.filter(r =>
+    r.bereitsInFeeAbgerechnet && r.freigegeben
+  );
+
+  const summeNichtAbgerechnet = auswaehlbareRechnungen.reduce((s, r) => s + r.betragNetto, 0);
   const offenerFeeBetrag = summeNichtAbgerechnet * (projekt.feePercent / 100);
 
   const handleFeeAendern = () => {
@@ -55,6 +87,7 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
     const eintrag: FeeHistorieEintrag = {
       id: generateId(),
       datum: new Date().toISOString().split('T')[0],
+      gueltigAb: gueltigAbDatum,
       feePercent: neuerWert,
       grund: feeGrund || undefined
     };
@@ -66,14 +99,23 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
     });
     setZeigeFeeModal(false);
     setFeeGrund('');
+    setGueltigAbDatum(new Date().toISOString().split('T')[0]);
   };
 
   const handleRechnungErstellen = () => {
     if (formData.bezugRechnungIds.length === 0) return;
 
     const bezugRechnungen = alleRechnungen.filter(r => formData.bezugRechnungIds.includes(r.id));
-    const summeBezug = bezugRechnungen.reduce((s, r) => s + r.betragNetto, 0);
-    const betragNetto = summeBezug * (projekt.feePercent / 100);
+
+    // Berechne Betrag basierend auf individuellen Fee-Sätzen
+    let betragNetto = 0;
+    const feePerRechnungMap: { [rechnungId: string]: number } = {};
+
+    bezugRechnungen.forEach(r => {
+      const feeSatz = feeProRechnung[r.id] ?? projekt.feePercent;
+      feePerRechnungMap[r.id] = feeSatz;
+      betragNetto += r.betragNetto * (feeSatz / 100);
+    });
 
     const neueRechnung: FeeRechnung = {
       id: generateId(),
@@ -82,7 +124,8 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
       datum: formData.datum,
       betragNetto,
       bezugRechnungIds: formData.bezugRechnungIds,
-      feePercent: projekt.feePercent,
+      feePerRechnung: feePerRechnungMap,
+      feePercent: projekt.feePercent, // Legacy/Fallback
       notizen: formData.notizen || undefined
     };
 
@@ -120,21 +163,61 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
     }));
   };
 
+  const toggleAlleAuswaehlen = () => {
+    if (formData.bezugRechnungIds.length === auswaehlbareRechnungen.length) {
+      setFormData(prev => ({ ...prev, bezugRechnungIds: [] }));
+    } else {
+      setFormData(prev => ({ ...prev, bezugRechnungIds: auswaehlbareRechnungen.map(r => r.id) }));
+    }
+  };
+
+  const handleFeeFuerAlleSetzen = () => {
+    const neueWerte: { [id: string]: number } = {};
+    alleRechnungen.forEach(r => {
+      neueWerte[r.id] = globalerFeeSatz;
+    });
+    setFeeProRechnung(neueWerte);
+  };
+
   const berechneBezugSumme = () => {
     return alleRechnungen
       .filter(r => formData.bezugRechnungIds.includes(r.id))
       .reduce((s, r) => s + r.betragNetto, 0);
   };
 
+  const berechneFeeSumme = () => {
+    return alleRechnungen
+      .filter(r => formData.bezugRechnungIds.includes(r.id))
+      .reduce((s, r) => {
+        const feeSatz = feeProRechnung[r.id] ?? projekt.feePercent;
+        return s + r.betragNetto * (feeSatz / 100);
+      }, 0);
+  };
+
   const getBezugRechnungenFuerFeeRechnung = (feeRechnung: FeeRechnung) => {
     return alleRechnungen.filter(r => feeRechnung.bezugRechnungIds.includes(r.id));
+  };
+
+  // Historien-Anzeige mit gueltigAb
+  const renderHistorie = () => {
+    return projekt.feeHistorie.slice(-5).reverse().map(e => (
+      <div key={e.id} className="text-sm text-apleona-gray-600 flex justify-between">
+        <span>
+          {formatDatum(e.gueltigAb || e.datum)}: {e.feePercent}%
+          {e.gueltigAb && e.gueltigAb !== e.datum && (
+            <span className="text-apleona-gray-400 ml-1">(erstellt: {formatDatum(e.datum)})</span>
+          )}
+        </span>
+        {e.grund && <span className="text-apleona-gray-400">{e.grund}</span>}
+      </div>
+    ));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Fee-Abrechnung</h2>
-        <button onClick={() => setZeigeModal(true)} className="btn-primary" disabled={nichtAbgerechneteRechnungen.length === 0}>
+        <button onClick={() => setZeigeModal(true)} className="btn-primary" disabled={auswaehlbareRechnungen.length === 0}>
           + Fee-Rechnung erstellen
         </button>
       </div>
@@ -148,6 +231,7 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
           </div>
           <button onClick={() => {
             setNeuerFeePercent(projekt.feePercent.toString());
+            setGueltigAbDatum(new Date().toISOString().split('T')[0]);
             setZeigeFeeModal(true);
           }} className="btn-secondary">
             Fee ändern
@@ -158,12 +242,7 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
           <div className="mt-4 pt-4 border-t border-apleona-gray-200">
             <h4 className="font-medium text-sm mb-2">Änderungshistorie</h4>
             <div className="space-y-1">
-              {projekt.feeHistorie.slice(-5).reverse().map(e => (
-                <div key={e.id} className="text-sm text-apleona-gray-600 flex justify-between">
-                  <span>{formatDatum(e.datum)}: {e.feePercent}%</span>
-                  {e.grund && <span className="text-apleona-gray-400">{e.grund}</span>}
-                </div>
-              ))}
+              {renderHistorie()}
             </div>
           </div>
         )}
@@ -173,7 +252,7 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card border-l-4 border-status-yellow">
           <p className="text-sm text-apleona-gray-600">Nicht abgerechnete Rechnungen</p>
-          <p className="text-2xl font-bold text-apleona-navy">{nichtAbgerechneteRechnungen.length}</p>
+          <p className="text-2xl font-bold text-apleona-navy">{auswaehlbareRechnungen.length}</p>
         </div>
         <div className="card border-l-4 border-status-yellow">
           <p className="text-sm text-apleona-gray-600">Summe (Basis für Fee)</p>
@@ -204,7 +283,12 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-status-green">{formatWaehrung(fr.betragNetto)}</p>
-                      <p className="text-xs text-apleona-gray-500">{fr.feePercent}% Fee</p>
+                      <p className="text-xs text-apleona-gray-500">
+                        {fr.feePerRechnung && Object.keys(fr.feePerRechnung).length > 0
+                          ? 'Individuelle Fee-Sätze'
+                          : `${fr.feePercent}% Fee`
+                        }
+                      </p>
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-apleona-gray-200">
@@ -213,6 +297,9 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                       {bezugRechnungen.slice(0, 5).map(br => (
                         <span key={br.id} className="text-xs bg-apleona-gray-100 px-2 py-1 rounded">
                           {br.rechnungsnummer} ({br.beteiligterName})
+                          {fr.feePerRechnung && fr.feePerRechnung[br.id] && (
+                            <span className="ml-1 text-apleona-gray-500">@ {fr.feePerRechnung[br.id]}%</span>
+                          )}
                         </span>
                       ))}
                       {bezugRechnungen.length > 5 && (
@@ -229,10 +316,10 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
         )}
       </div>
 
-      {/* Noch nicht abgerechnete Rechnungen */}
-      {nichtAbgerechneteRechnungen.length > 0 && (
+      {/* Alle Rechnungen (auswählbar + bereits abgerechnet) */}
+      {(auswaehlbareRechnungen.length > 0 || abgerechneteRechnungen.length > 0) && (
         <div className="card">
-          <h3 className="font-semibold mb-4">Noch nicht in Fee abgerechnete Rechnungen</h3>
+          <h3 className="font-semibold mb-4">Alle Rechnungen</h3>
           <table className="min-w-full divide-y divide-apleona-gray-200">
             <thead className="bg-apleona-gray-50">
               <tr>
@@ -240,11 +327,12 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                 <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Datum</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Beteiligter</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Betrag netto</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Fee ({projekt.feePercent}%)</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-apleona-gray-200">
-              {nichtAbgerechneteRechnungen.map(r => (
+              {/* Nicht abgerechnete Rechnungen */}
+              {auswaehlbareRechnungen.map(r => (
                 <tr key={r.id}>
                   <td className="px-3 py-2 text-sm">{r.rechnungsnummer}</td>
                   <td className="px-3 py-2 text-sm">{formatDatum(r.datum)}</td>
@@ -254,8 +342,24 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                     </span>
                   </td>
                   <td className="px-3 py-2 text-sm text-right">{formatWaehrung(r.betragNetto)}</td>
-                  <td className="px-3 py-2 text-sm text-right text-status-green">
-                    {formatWaehrung(r.betragNetto * (projekt.feePercent / 100))}
+                  <td className="px-3 py-2 text-sm text-right">
+                    <span className="text-status-yellow">Offen</span>
+                  </td>
+                </tr>
+              ))}
+              {/* Bereits abgerechnete Rechnungen (verblasst) */}
+              {abgerechneteRechnungen.map(r => (
+                <tr key={r.id} className="opacity-50">
+                  <td className="px-3 py-2 text-sm">{r.rechnungsnummer}</td>
+                  <td className="px-3 py-2 text-sm">{formatDatum(r.datum)}</td>
+                  <td className="px-3 py-2 text-sm">
+                    <span className={r.beteiligterTyp === 'Fachplaner' ? 'badge-info' : 'badge-success'}>
+                      {r.beteiligterName}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right">{formatWaehrung(r.betragNetto)}</td>
+                  <td className="px-3 py-2 text-sm text-right">
+                    <span className="text-status-green">Abgerechnet</span>
                   </td>
                 </tr>
               ))}
@@ -277,6 +381,15 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                   step="0.1"
                   value={neuerFeePercent}
                   onChange={e => setNeuerFeePercent(e.target.value)}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="label">Gültig ab</label>
+                <input
+                  type="date"
+                  value={gueltigAbDatum}
+                  onChange={e => setGueltigAbDatum(e.target.value)}
                   className="input-field"
                 />
               </div>
@@ -327,38 +440,147 @@ const TabFee: React.FC<Props> = ({ projekt, onUpdate }) => {
                 </div>
               </div>
 
+              {/* Fee-Satz für alle setzen */}
+              <div className="bg-apleona-gray-50 p-3 rounded-lg flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.bezugRechnungIds.length === auswaehlbareRechnungen.length && auswaehlbareRechnungen.length > 0}
+                    onChange={toggleAlleAuswaehlen}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-medium">Alle auswählen</span>
+                </label>
+                <div className="flex-1" />
+                <span className="text-sm">Fee-Satz für alle:</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={globalerFeeSatz}
+                  onChange={e => setGlobalerFeeSatz(parseFloat(e.target.value) || 0)}
+                  className="input-field w-20 py-1 text-sm"
+                />
+                <span className="text-sm">%</span>
+                <button
+                  onClick={handleFeeFuerAlleSetzen}
+                  className="btn-secondary py-1 px-2 text-sm"
+                >
+                  Anwenden
+                </button>
+              </div>
+
               <div>
-                <label className="label">Bezogene Rechnungen auswählen</label>
-                <div className="max-h-60 overflow-y-auto border border-apleona-gray-200 rounded-lg p-2">
-                  {nichtAbgerechneteRechnungen.map(r => (
-                    <label key={r.id} className="flex items-center p-2 hover:bg-apleona-gray-50 rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.bezugRechnungIds.includes(r.id)}
-                        onChange={() => toggleBezugRechnung(r.id)}
-                        className="mr-3"
-                      />
-                      <div className="flex-1">
-                        <span className="font-medium">{r.rechnungsnummer}</span>
-                        <span className="text-sm text-apleona-gray-500 ml-2">
-                          {r.beteiligterName} - {formatWaehrung(r.betragNetto)}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
+                <label className="label">Rechnungen auswählen</label>
+                <div className="max-h-80 overflow-y-auto border border-apleona-gray-200 rounded-lg">
+                  <table className="min-w-full divide-y divide-apleona-gray-200">
+                    <thead className="bg-apleona-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500 w-10"></th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Rechnung</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Beteiligter</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Betrag</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500 w-24">Fee %</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Fee</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-apleona-gray-200">
+                      {/* Auswählbare Rechnungen */}
+                      {auswaehlbareRechnungen.map(r => {
+                        const isSelected = formData.bezugRechnungIds.includes(r.id);
+                        const feeSatz = feeProRechnung[r.id] ?? projekt.feePercent;
+                        const feeBetrag = r.betragNetto * (feeSatz / 100);
+                        return (
+                          <tr key={r.id} className={`hover:bg-apleona-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}>
+                            <td className="px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleBezugRechnung(r.id)}
+                                className="w-4 h-4"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm">
+                              <div className="font-medium">{r.rechnungsnummer}</div>
+                              <div className="text-xs text-apleona-gray-500">{formatDatum(r.datum)}</div>
+                            </td>
+                            <td className="px-3 py-2 text-sm">
+                              <span className={r.beteiligterTyp === 'Fachplaner' ? 'badge-info' : 'badge-success'}>
+                                {r.beteiligterName}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right">{formatWaehrung(r.betragNetto)}</td>
+                            <td className="px-3 py-2 text-center">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={feeSatz}
+                                onChange={e => setFeeProRechnung(prev => ({
+                                  ...prev,
+                                  [r.id]: parseFloat(e.target.value) || 0
+                                }))}
+                                className="input-field w-16 py-1 text-sm text-center"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right text-status-green font-medium">
+                              {formatWaehrung(feeBetrag)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {/* Bereits abgerechnete Rechnungen (verblasst, nicht auswählbar) */}
+                      {abgerechneteRechnungen.length > 0 && (
+                        <>
+                          <tr>
+                            <td colSpan={6} className="px-3 py-2 bg-apleona-gray-100 text-xs text-apleona-gray-500 font-medium">
+                              Bereits abgerechnet
+                            </td>
+                          </tr>
+                          {abgerechneteRechnungen.map(r => (
+                            <tr key={r.id} className="opacity-50">
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={false}
+                                  disabled
+                                  className="w-4 h-4 opacity-50"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-sm">
+                                <div className="font-medium">{r.rechnungsnummer}</div>
+                                <div className="text-xs text-apleona-gray-500">{formatDatum(r.datum)}</div>
+                              </td>
+                              <td className="px-3 py-2 text-sm">
+                                <span className={r.beteiligterTyp === 'Fachplaner' ? 'badge-info' : 'badge-success'}>
+                                  {r.beteiligterName}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-right">{formatWaehrung(r.betragNetto)}</td>
+                              <td className="px-3 py-2 text-sm text-center text-apleona-gray-400" colSpan={2}>
+                                bereits abgerechnet
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
               {formData.bezugRechnungIds.length > 0 && (
                 <div className="bg-apleona-gray-50 p-4 rounded-lg">
                   <div className="flex justify-between">
-                    <span>Summe ausgewählter Rechnungen:</span>
+                    <span>Ausgewählte Rechnungen:</span>
+                    <span className="font-medium">{formData.bezugRechnungIds.length}</span>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span>Summe Rechnungsbeträge:</span>
                     <span className="font-medium">{formatWaehrung(berechneBezugSumme())}</span>
                   </div>
-                  <div className="flex justify-between mt-2 text-lg">
-                    <span>Fee ({projekt.feePercent}%):</span>
+                  <div className="flex justify-between mt-2 pt-2 border-t border-apleona-gray-300 text-lg">
+                    <span>Fee-Betrag gesamt:</span>
                     <span className="font-bold text-status-green">
-                      {formatWaehrung(berechneBezugSumme() * (projekt.feePercent / 100))}
+                      {formatWaehrung(berechneFeeSumme())}
                     </span>
                   </div>
                 </div>
