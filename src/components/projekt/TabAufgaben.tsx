@@ -288,6 +288,21 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
     return monateHeader.reduce((sum, m) => sum + m.breite * 3, 0);
   }, [zeitskala, tageGesamt, monateHeader]);
 
+  // Heute-Position berechnen
+  const heutePosition = useMemo(() => {
+    const heute = new Date();
+    heute.setHours(0, 0, 0, 0);
+
+    // Prüfen ob heute im sichtbaren Bereich liegt
+    if (heute < minDatum || heute > maxDatum) return null;
+
+    const tageOffset = (heute.getTime() - minDatum.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (zeitskala === 'tage') return tageOffset * 30;
+    if (zeitskala === 'wochen') return (tageOffset / 7) * 50;
+    return tageOffset * (ganttBreite / tageGesamt);
+  }, [minDatum, maxDatum, zeitskala, ganttBreite, tageGesamt]);
+
   const berechneBalken = (startDatum: string | undefined, endDatum: string | undefined) => {
     if (!startDatum || !endDatum) return { left: 0, width: 0 };
 
@@ -509,13 +524,14 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
           {projekt.aufgaben.length === 0 ? (
             <p className="text-apleona-gray-500 text-center py-8">Keine Aufgaben für Gantt-Diagramm</p>
           ) : (
+            <>
             <div className="relative overflow-x-auto">
               <div style={{ minWidth: `${Math.max(800, 208 + ganttBreite)}px` }}>
                 {/* Header */}
                 <div className="flex border-b border-apleona-gray-200">
-                  <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-10 border-r border-apleona-gray-200">
-                    <div className="h-8 border-b border-apleona-gray-100"></div>
-                    <div className="h-8 flex items-center font-medium text-sm text-apleona-gray-600 px-2">Aufgabe</div>
+                  <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-30 border-r border-apleona-gray-200">
+                    <div className="h-8 border-b border-apleona-gray-100 bg-white"></div>
+                    <div className="h-8 flex items-center font-medium text-sm text-apleona-gray-600 px-2 bg-white">Aufgabe</div>
                   </div>
                   <div className="flex-1">
                     <div className="flex h-8 border-b border-apleona-gray-100">
@@ -612,6 +628,15 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                     })}
                   </svg>
 
+                  {/* Heute-Linie */}
+                  {heutePosition !== null && (
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-400 opacity-70 pointer-events-none z-20"
+                      style={{ left: `${208 + heutePosition}px` }}
+                      title={`Heute: ${new Date().toLocaleDateString('de-DE')}`}
+                    />
+                  )}
+
                   {projekt.aufgaben.map(aufgabe => {
                     const sollBalken = berechneBalken(aufgabe.startDatumSoll, aufgabe.endDatumSoll);
                     const istBalken = berechneBalken(aufgabe.startDatumIst, aufgabe.endDatumIst);
@@ -626,7 +651,7 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
 
                     return (
                       <div key={aufgabe.id} className="flex items-center border-b border-apleona-gray-100">
-                        <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-10 border-r border-apleona-gray-200 py-2 px-2">
+                        <div className="w-52 flex-shrink-0 bg-white sticky left-0 z-30 border-r border-apleona-gray-200 py-2 px-2">
                           <p className="text-sm font-medium truncate" title={aufgabe.titel}>{aufgabe.titel}</p>
                           <p className="text-xs text-apleona-gray-500">
                             {aufgabe.fortschrittProzent}%
@@ -713,44 +738,49 @@ const TabAufgaben: React.FC<Props> = ({ projekt, onUpdate }) => {
                     );
                   })}
                 </div>
-
-                {/* Legende */}
-                <div className="flex items-center flex-wrap gap-6 mt-4 pt-4 border-t border-apleona-gray-200 text-xs text-apleona-gray-600">
-                  <div className="flex items-center">
-                    <div className="w-4 h-3 bg-apleona-navy opacity-40 rounded mr-2"></div>
-                    <span>Soll</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-3 bg-apleona-navy rounded mr-2"></div>
-                    <span>Ist</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-3 bg-status-red rounded mr-2"></div>
-                    <span>Verzögert</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-3 bg-status-green rounded mr-2"></div>
-                    <span>Fortschritt</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-3 rounded border border-gray-400 mr-2"
-                      style={{ background: 'repeating-linear-gradient(45deg, #9ca3af, #9ca3af 2px, #d1d5db 2px, #d1d5db 4px)' }}></div>
-                    <span>Konflikt (Vorgänger nicht beendet)</span>
-                  </div>
-                  <div className="flex items-center">
-                    <svg className="w-6 h-3 mr-2" viewBox="0 0 24 12">
-                      <defs>
-                        <marker id="arrowhead-legend" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                          <polygon points="0 0, 6 2, 0 4" fill="#002D5A" />
-                        </marker>
-                      </defs>
-                      <path d="M 2 6 L 18 6" stroke="#002D5A" strokeWidth="2" markerEnd="url(#arrowhead-legend)" />
-                    </svg>
-                    <span>Abhängigkeit</span>
-                  </div>
-                </div>
               </div>
             </div>
+
+            {/* Legende - außerhalb des scrollbaren Bereichs */}
+            <div className="flex items-center flex-wrap gap-6 mt-4 pt-4 border-t border-apleona-gray-200 text-xs text-apleona-gray-600">
+              <div className="flex items-center">
+                <div className="w-4 h-3 bg-apleona-navy opacity-40 rounded mr-2"></div>
+                <span>Soll</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-3 bg-apleona-navy rounded mr-2"></div>
+                <span>Ist</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-3 bg-status-red rounded mr-2"></div>
+                <span>Verzögert</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-3 bg-status-green rounded mr-2"></div>
+                <span>Fortschritt</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-3 rounded border border-gray-400 mr-2"
+                  style={{ background: 'repeating-linear-gradient(45deg, #9ca3af, #9ca3af 2px, #d1d5db 2px, #d1d5db 4px)' }}></div>
+                <span>Konflikt (Vorgänger nicht beendet)</span>
+              </div>
+              <div className="flex items-center">
+                <svg className="w-6 h-3 mr-2" viewBox="0 0 24 12">
+                  <defs>
+                    <marker id="arrowhead-legend" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                      <polygon points="0 0, 6 2, 0 4" fill="#002D5A" />
+                    </marker>
+                  </defs>
+                  <path d="M 2 6 L 18 6" stroke="#002D5A" strokeWidth="2" markerEnd="url(#arrowhead-legend)" />
+                </svg>
+                <span>Abhängigkeit</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-0.5 h-4 bg-red-400 opacity-70 mr-2"></div>
+                <span>Heute</span>
+              </div>
+            </div>
+            </>
           )}
         </div>
       )}
