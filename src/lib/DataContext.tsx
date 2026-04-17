@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { AppDaten, Projekt, ProjektStatus, Fachfirma, BuergschaftDaten, RechnungSicherheiten, Mangel } from '@/types';
+import { AppDaten, Projekt, ProjektStatus, Fachfirma, Fachplaner, BuergschaftDaten, RechnungSicherheiten, Mangel, Ansprechpartner } from '@/types';
 import { erstelleLeereAppDaten, getJsonDateiname, generateId } from './utils';
 
 // Migration: Alte Status-Werte (gruen/gelb/rot) auf neue konvertieren
@@ -134,6 +134,76 @@ function migriereMaengelDaten(daten: AppDaten): AppDaten {
   };
 }
 
+// Migration: Ansprechpartner-Daten (kontakt.ansprechpartner → ansprechpartner[])
+function migrierAnsprechpartner(daten: AppDaten): AppDaten {
+  return {
+    ...daten,
+    projekte: daten.projekte.map(projekt => ({
+      ...projekt,
+      // Fachplaner migrieren
+      fachplaner: projekt.fachplaner.map(fp => {
+        const alteFp = fp as Fachplaner & { ansprechpartner?: Ansprechpartner[] };
+
+        // Wenn bereits ansprechpartner-Array vorhanden, prüfen ob leer und Legacy-Daten vorhanden
+        if (alteFp.ansprechpartner && alteFp.ansprechpartner.length > 0) {
+          return fp;
+        }
+
+        // Legacy-Ansprechpartner aus kontakt migrieren
+        if (fp.kontakt.ansprechpartner) {
+          const migrierterAnsprechpartner: Ansprechpartner = {
+            id: generateId(),
+            name: fp.kontakt.ansprechpartner,
+            istHauptkontakt: true,
+            telefon: fp.kontakt.telefon,
+            email: fp.kontakt.email
+          };
+          return {
+            ...fp,
+            ansprechpartner: [migrierterAnsprechpartner]
+          };
+        }
+
+        // Leeres Array initialisieren wenn nicht vorhanden
+        return {
+          ...fp,
+          ansprechpartner: alteFp.ansprechpartner || []
+        };
+      }),
+      // Fachfirmen migrieren
+      fachfirmen: projekt.fachfirmen.map(ff => {
+        const alteFf = ff as Fachfirma & { ansprechpartner?: Ansprechpartner[] };
+
+        // Wenn bereits ansprechpartner-Array vorhanden und nicht leer
+        if (alteFf.ansprechpartner && alteFf.ansprechpartner.length > 0) {
+          return ff;
+        }
+
+        // Legacy-Ansprechpartner aus kontakt migrieren
+        if (ff.kontakt.ansprechpartner) {
+          const migrierterAnsprechpartner: Ansprechpartner = {
+            id: generateId(),
+            name: ff.kontakt.ansprechpartner,
+            istHauptkontakt: true,
+            telefon: ff.kontakt.telefon,
+            email: ff.kontakt.email
+          };
+          return {
+            ...ff,
+            ansprechpartner: [migrierterAnsprechpartner]
+          };
+        }
+
+        // Leeres Array initialisieren wenn nicht vorhanden
+        return {
+          ...ff,
+          ansprechpartner: alteFf.ansprechpartner || []
+        };
+      })
+    }))
+  };
+}
+
 // Hilfsfunktion: Alte Bürgschaftsstruktur auf neue migrieren
 function migriereBuergschaft(alteBuergschaft: BuergschaftDaten | { urkundeErhalten?: boolean; urkundeZurueckgesendet?: boolean; datum?: string } | undefined, typ: 'vertragserfuellung' | 'gewaehrleistung'): BuergschaftDaten {
   if (!alteBuergschaft) {
@@ -215,6 +285,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           migriert = migriereFachfirmenDaten(migriert);
           // Migration: Mängel-Daten migrieren
           migriert = migriereMaengelDaten(migriert);
+          // Migration: Ansprechpartner-Daten migrieren
+          migriert = migrierAnsprechpartner(migriert);
 
           // Versionswarnung prüfen
           if (letztesSpeicherdatum) {

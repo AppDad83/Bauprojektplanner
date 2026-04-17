@@ -123,6 +123,17 @@ export interface Angebot {
 // STAKEHOLDER & BETEILIGTE
 // ============================================
 
+// Ansprechpartner für Fachplaner/Fachfirmen
+export interface Ansprechpartner {
+  id: string;
+  name: string;
+  rolle?: string;           // z.B. "Projektleiter", "Bauleiter", "Oberbauleiter"
+  telefon?: string;
+  email?: string;
+  istHauptkontakt?: boolean; // Primärer Ansprechpartner markieren
+  notizen?: string;
+}
+
 export interface Stakeholder {
   id: string;
   name: string;
@@ -164,10 +175,11 @@ export interface BaseBeteiligter {
   name: string;
   firma: string;
   kontakt: {
-    telefon?: string;
-    email?: string;
-    ansprechpartner?: string;
+    telefon?: string;           // Zentrale/Firma
+    email?: string;             // Zentrale/Firma
+    ansprechpartner?: string;   // Legacy (für Migration)
   };
+  ansprechpartner: Ansprechpartner[];  // Array von Ansprechpartnern
   gewerkId?: string; // Zugeordnetes Gewerk
   angebote: Angebot[];
   vergabeEmpfehlung: VergabeEmpfehlung;

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Projekt, Fachplaner, Rechnung, Angebot, RechnungsTyp, AngebotStatus, FachplanerAbnahme, AbnahmeArt } from '@/types';
+import { Projekt, Fachplaner, Rechnung, Angebot, RechnungsTyp, AngebotStatus, FachplanerAbnahme, AbnahmeArt, Ansprechpartner } from '@/types';
 import { formatDatum, formatWaehrung, generateId } from '@/lib/utils';
 
 interface Props {
@@ -46,12 +46,22 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
   const [formData, setFormData] = useState({
     name: '',
     firma: '',
-    ansprechpartner: '',
     telefon: '',
     email: '',
     gewerkId: '',
+    notizen: '',
+    ansprechpartner: [] as Ansprechpartner[]
+  });
+
+  // Ansprechpartner Form für Inline-Bearbeitung
+  const [neuerAnsprechpartner, setNeuerAnsprechpartner] = useState({
+    name: '',
+    rolle: '',
+    telefon: '',
+    email: '',
     notizen: ''
   });
+  const [editAnsprechpartnerId, setEditAnsprechpartnerId] = useState<string | null>(null);
 
   const [rechnungForm, setRechnungForm] = useState({
     rechnungsnummer: '',
@@ -82,9 +92,11 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
   const handleNeu = () => {
     setEditFachplaner(null);
     setFormData({
-      name: '', firma: '', ansprechpartner: '', telefon: '', email: '',
-      gewerkId: '', notizen: ''
+      name: '', firma: '', telefon: '', email: '',
+      gewerkId: '', notizen: '', ansprechpartner: []
     });
+    setNeuerAnsprechpartner({ name: '', rolle: '', telefon: '', email: '', notizen: '' });
+    setEditAnsprechpartnerId(null);
     setZeigeModal(true);
   };
 
@@ -93,18 +105,23 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
     setFormData({
       name: fp.name,
       firma: fp.firma,
-      ansprechpartner: fp.kontakt.ansprechpartner || '',
       telefon: fp.kontakt.telefon || '',
       email: fp.kontakt.email || '',
       gewerkId: fp.gewerkId || '',
-      notizen: fp.notizen || ''
+      notizen: fp.notizen || '',
+      ansprechpartner: fp.ansprechpartner || []
     });
+    setNeuerAnsprechpartner({ name: '', rolle: '', telefon: '', email: '', notizen: '' });
+    setEditAnsprechpartnerId(null);
     setZeigeModal(true);
   };
 
   const handleSave = () => {
+    // Hauptkontakt aus Ansprechpartnern ermitteln für Legacy-Feld
+    const hauptkontakt = formData.ansprechpartner.find(ap => ap.istHauptkontakt);
+
     const kontakt = {
-      ansprechpartner: formData.ansprechpartner || undefined,
+      ansprechpartner: hauptkontakt?.name || undefined, // Legacy-Feld für Rückwärtskompatibilität
       telefon: formData.telefon || undefined,
       email: formData.email || undefined
     };
@@ -117,6 +134,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
               name: formData.name,
               firma: formData.firma,
               kontakt,
+              ansprechpartner: formData.ansprechpartner,
               gewerkId: formData.gewerkId || undefined,
               notizen: formData.notizen || undefined
             }
@@ -130,6 +148,7 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
         name: formData.name,
         firma: formData.firma,
         kontakt,
+        ansprechpartner: formData.ansprechpartner,
         gewerkId: formData.gewerkId || undefined,
         angebote: [],
         vergabeEmpfehlung: {},
@@ -142,6 +161,85 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
       onUpdate({ ...projekt, fachplaner: [...projekt.fachplaner, neu] });
     }
     setZeigeModal(false);
+  };
+
+  // Ansprechpartner-Verwaltung
+  const handleAnsprechpartnerHinzufuegen = () => {
+    if (!neuerAnsprechpartner.name.trim()) return;
+
+    const neuer: Ansprechpartner = {
+      id: generateId(),
+      name: neuerAnsprechpartner.name,
+      rolle: neuerAnsprechpartner.rolle || undefined,
+      telefon: neuerAnsprechpartner.telefon || undefined,
+      email: neuerAnsprechpartner.email || undefined,
+      notizen: neuerAnsprechpartner.notizen || undefined,
+      istHauptkontakt: formData.ansprechpartner.length === 0 // Erster wird Hauptkontakt
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      ansprechpartner: [...prev.ansprechpartner, neuer]
+    }));
+    setNeuerAnsprechpartner({ name: '', rolle: '', telefon: '', email: '', notizen: '' });
+  };
+
+  const handleAnsprechpartnerBearbeiten = (ap: Ansprechpartner) => {
+    setEditAnsprechpartnerId(ap.id);
+    setNeuerAnsprechpartner({
+      name: ap.name,
+      rolle: ap.rolle || '',
+      telefon: ap.telefon || '',
+      email: ap.email || '',
+      notizen: ap.notizen || ''
+    });
+  };
+
+  const handleAnsprechpartnerSpeichern = () => {
+    if (!editAnsprechpartnerId || !neuerAnsprechpartner.name.trim()) return;
+
+    setFormData(prev => ({
+      ...prev,
+      ansprechpartner: prev.ansprechpartner.map(ap =>
+        ap.id === editAnsprechpartnerId
+          ? {
+              ...ap,
+              name: neuerAnsprechpartner.name,
+              rolle: neuerAnsprechpartner.rolle || undefined,
+              telefon: neuerAnsprechpartner.telefon || undefined,
+              email: neuerAnsprechpartner.email || undefined,
+              notizen: neuerAnsprechpartner.notizen || undefined
+            }
+          : ap
+      )
+    }));
+    setEditAnsprechpartnerId(null);
+    setNeuerAnsprechpartner({ name: '', rolle: '', telefon: '', email: '', notizen: '' });
+  };
+
+  const handleAnsprechpartnerLoeschen = (id: string) => {
+    setFormData(prev => {
+      const gefiltert = prev.ansprechpartner.filter(ap => ap.id !== id);
+      // Falls gelöschter Hauptkontakt war, ersten zum neuen Hauptkontakt machen
+      if (gefiltert.length > 0 && !gefiltert.some(ap => ap.istHauptkontakt)) {
+        gefiltert[0].istHauptkontakt = true;
+      }
+      return { ...prev, ansprechpartner: gefiltert };
+    });
+    if (editAnsprechpartnerId === id) {
+      setEditAnsprechpartnerId(null);
+      setNeuerAnsprechpartner({ name: '', rolle: '', telefon: '', email: '', notizen: '' });
+    }
+  };
+
+  const handleHauptkontaktSetzen = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      ansprechpartner: prev.ansprechpartner.map(ap => ({
+        ...ap,
+        istHauptkontakt: ap.id === id
+      }))
+    }));
   };
 
   const handleDelete = (id: string) => {
@@ -836,20 +934,39 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
                     {/* Kontaktdaten */}
                     <div className="pt-4 border-t border-apleona-gray-200">
                       <h4 className="font-medium mb-2">Kontakt</h4>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="text-apleona-gray-500">Ansprechpartner:</span>
-                          <span className="ml-2">{fp.kontakt.ansprechpartner || '-'}</span>
+
+                      {/* Firmenkontakt */}
+                      {(fp.kontakt.telefon || fp.kontakt.email) && (
+                        <div className="mb-3 text-sm text-apleona-gray-600">
+                          <span className="font-medium">Firma: </span>
+                          {fp.kontakt.telefon && <span className="mr-4">Tel: {fp.kontakt.telefon}</span>}
+                          {fp.kontakt.email && <span>E-Mail: {fp.kontakt.email}</span>}
                         </div>
-                        <div>
-                          <span className="text-apleona-gray-500">Telefon:</span>
-                          <span className="ml-2">{fp.kontakt.telefon || '-'}</span>
+                      )}
+
+                      {/* Ansprechpartner */}
+                      {fp.ansprechpartner && fp.ansprechpartner.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {fp.ansprechpartner.map(ap => (
+                            <div
+                              key={ap.id}
+                              className={`p-2 rounded text-sm ${ap.istHauptkontakt ? 'bg-green-50 border border-green-200' : 'bg-apleona-gray-50'}`}
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium">{ap.name}</span>
+                                {ap.rolle && <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded">{ap.rolle}</span>}
+                                {ap.istHauptkontakt && <span className="text-xs px-1.5 py-0.5 bg-green-200 text-green-800 rounded">Hauptkontakt</span>}
+                              </div>
+                              <div className="text-apleona-gray-600 mt-1">
+                                {ap.telefon && <span className="mr-3">Tel: {ap.telefon}</span>}
+                                {ap.email && <span>E-Mail: {ap.email}</span>}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div>
-                          <span className="text-apleona-gray-500">E-Mail:</span>
-                          <span className="ml-2">{fp.kontakt.email || '-'}</span>
-                        </div>
-                      </div>
+                      ) : (
+                        <p className="text-sm text-apleona-gray-500">Keine Ansprechpartner hinterlegt</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -903,33 +1020,183 @@ const TabFachplaner: React.FC<Props> = ({ projekt, onUpdate }) => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              {/* Firmenkontakt (Zentrale) */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Ansprechpartner</label>
-                  <input
-                    type="text"
-                    value={formData.ansprechpartner}
-                    onChange={e => setFormData({ ...formData, ansprechpartner: e.target.value })}
-                    className="input-field"
-                  />
-                </div>
-                <div>
-                  <label className="label">Telefon</label>
+                  <label className="label">Telefon (Zentrale)</label>
                   <input
                     type="tel"
                     value={formData.telefon}
                     onChange={e => setFormData({ ...formData, telefon: e.target.value })}
                     className="input-field"
+                    placeholder="Telefon der Firma"
                   />
                 </div>
                 <div>
-                  <label className="label">E-Mail</label>
+                  <label className="label">E-Mail (Zentrale)</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
                     className="input-field"
+                    placeholder="E-Mail der Firma"
                   />
+                </div>
+              </div>
+
+              {/* Ansprechpartner-Verwaltung */}
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3">Ansprechpartner</h3>
+
+                {/* Liste der Ansprechpartner */}
+                {formData.ansprechpartner.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {formData.ansprechpartner.map(ap => (
+                      <div
+                        key={ap.id}
+                        className={`p-3 rounded-lg border ${ap.istHauptkontakt ? 'bg-green-50 border-green-200' : 'bg-apleona-gray-50 border-apleona-gray-200'}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium">{ap.name}</span>
+                              {ap.rolle && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">{ap.rolle}</span>}
+                              {ap.istHauptkontakt && <span className="text-xs px-2 py-0.5 bg-green-200 text-green-800 rounded">Hauptkontakt</span>}
+                            </div>
+                            <div className="text-sm text-apleona-gray-600 mt-1 space-x-4">
+                              {ap.telefon && <span>Tel: {ap.telefon}</span>}
+                              {ap.email && <span>E-Mail: {ap.email}</span>}
+                            </div>
+                            {ap.notizen && <p className="text-xs text-apleona-gray-500 mt-1">{ap.notizen}</p>}
+                          </div>
+                          <div className="flex space-x-1">
+                            {!ap.istHauptkontakt && (
+                              <button
+                                type="button"
+                                onClick={() => handleHauptkontaktSetzen(ap.id)}
+                                className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                title="Als Hauptkontakt setzen"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleAnsprechpartnerBearbeiten(ap)}
+                              className="p-1 text-apleona-navy hover:bg-blue-100 rounded"
+                              title="Bearbeiten"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAnsprechpartnerLoeschen(ap.id)}
+                              className="p-1 text-apleona-red hover:bg-red-100 rounded"
+                              title="Löschen"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Formular für neuen/bearbeiteten Ansprechpartner */}
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">
+                    {editAnsprechpartnerId ? 'Ansprechpartner bearbeiten' : 'Neuer Ansprechpartner'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label text-xs">Name *</label>
+                      <input
+                        type="text"
+                        value={neuerAnsprechpartner.name}
+                        onChange={e => setNeuerAnsprechpartner({ ...neuerAnsprechpartner, name: e.target.value })}
+                        className="input-field text-sm"
+                        placeholder="Name des Ansprechpartners"
+                      />
+                    </div>
+                    <div>
+                      <label className="label text-xs">Rolle</label>
+                      <input
+                        type="text"
+                        value={neuerAnsprechpartner.rolle}
+                        onChange={e => setNeuerAnsprechpartner({ ...neuerAnsprechpartner, rolle: e.target.value })}
+                        className="input-field text-sm"
+                        placeholder="z.B. Projektleiter, Bauleiter"
+                      />
+                    </div>
+                    <div>
+                      <label className="label text-xs">Telefon</label>
+                      <input
+                        type="tel"
+                        value={neuerAnsprechpartner.telefon}
+                        onChange={e => setNeuerAnsprechpartner({ ...neuerAnsprechpartner, telefon: e.target.value })}
+                        className="input-field text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="label text-xs">E-Mail</label>
+                      <input
+                        type="email"
+                        value={neuerAnsprechpartner.email}
+                        onChange={e => setNeuerAnsprechpartner({ ...neuerAnsprechpartner, email: e.target.value })}
+                        className="input-field text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className="label text-xs">Notizen</label>
+                    <input
+                      type="text"
+                      value={neuerAnsprechpartner.notizen}
+                      onChange={e => setNeuerAnsprechpartner({ ...neuerAnsprechpartner, notizen: e.target.value })}
+                      className="input-field text-sm"
+                      placeholder="Zusätzliche Informationen..."
+                    />
+                  </div>
+                  <div className="mt-3 flex space-x-2">
+                    {editAnsprechpartnerId ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleAnsprechpartnerSpeichern}
+                          disabled={!neuerAnsprechpartner.name.trim()}
+                          className="btn-primary text-sm disabled:opacity-50"
+                        >
+                          Speichern
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditAnsprechpartnerId(null);
+                            setNeuerAnsprechpartner({ name: '', rolle: '', telefon: '', email: '', notizen: '' });
+                          }}
+                          className="btn-secondary text-sm"
+                        >
+                          Abbrechen
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleAnsprechpartnerHinzufuegen}
+                        disabled={!neuerAnsprechpartner.name.trim()}
+                        className="btn-secondary text-sm disabled:opacity-50"
+                      >
+                        + Hinzufügen
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

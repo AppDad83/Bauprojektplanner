@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Projekt, Stakeholder, StakeholderKategorie, Fachplaner, Fachfirma } from '@/types';
+import { Projekt, Stakeholder, StakeholderKategorie, Fachplaner, Fachfirma, Ansprechpartner } from '@/types';
 import { generateId } from '@/lib/utils';
 
 interface Props {
@@ -66,6 +66,8 @@ interface VirtuellerStakeholder {
   telefon?: string;
   email?: string;
   istReadOnly: true;
+  quelleTyp: 'fachplaner' | 'fachfirma';
+  quelleId: string; // ID des Fachplaners/Fachfirma
 }
 
 const TabStakeholder: React.FC<Props> = ({ projekt, onUpdate }) => {
@@ -89,27 +91,65 @@ const TabStakeholder: React.FC<Props> = ({ projekt, onUpdate }) => {
     return s;
   });
 
-  // Fachplaner als virtuelle Stakeholder
-  const fachplanerAlsStakeholder: VirtuellerStakeholder[] = projekt.fachplaner.map(fp => ({
-    id: fp.id,
-    name: fp.kontakt.ansprechpartner || fp.name,
-    firma: fp.firma,
-    rolle: 'Fachplaner',
-    telefon: fp.kontakt.telefon,
-    email: fp.kontakt.email,
-    istReadOnly: true
-  }));
+  // Fachplaner-Ansprechpartner als virtuelle Stakeholder
+  const fachplanerAlsStakeholder: VirtuellerStakeholder[] = projekt.fachplaner.flatMap(fp => {
+    // Wenn Ansprechpartner vorhanden, diese verwenden
+    if (fp.ansprechpartner && fp.ansprechpartner.length > 0) {
+      return fp.ansprechpartner.map(ap => ({
+        id: `fp-${fp.id}-${ap.id}`,
+        name: ap.name,
+        firma: fp.firma,
+        rolle: ap.rolle || 'Fachplaner',
+        telefon: ap.telefon || fp.kontakt.telefon,
+        email: ap.email || fp.kontakt.email,
+        istReadOnly: true as const,
+        quelleTyp: 'fachplaner' as const,
+        quelleId: fp.id
+      }));
+    }
+    // Fallback: Legacy-Ansprechpartner oder Firmenname
+    return [{
+      id: `fp-${fp.id}`,
+      name: fp.kontakt.ansprechpartner || fp.name,
+      firma: fp.firma,
+      rolle: 'Fachplaner',
+      telefon: fp.kontakt.telefon,
+      email: fp.kontakt.email,
+      istReadOnly: true as const,
+      quelleTyp: 'fachplaner' as const,
+      quelleId: fp.id
+    }];
+  });
 
-  // Fachfirmen als virtuelle Stakeholder
-  const fachfirmenAlsStakeholder: VirtuellerStakeholder[] = projekt.fachfirmen.map(ff => ({
-    id: ff.id,
-    name: ff.kontakt.ansprechpartner || ff.name,
-    firma: ff.firma,
-    rolle: 'Fachfirma',
-    telefon: ff.kontakt.telefon,
-    email: ff.kontakt.email,
-    istReadOnly: true
-  }));
+  // Fachfirmen-Ansprechpartner als virtuelle Stakeholder
+  const fachfirmenAlsStakeholder: VirtuellerStakeholder[] = projekt.fachfirmen.flatMap(ff => {
+    // Wenn Ansprechpartner vorhanden, diese verwenden
+    if (ff.ansprechpartner && ff.ansprechpartner.length > 0) {
+      return ff.ansprechpartner.map(ap => ({
+        id: `ff-${ff.id}-${ap.id}`,
+        name: ap.name,
+        firma: ff.firma,
+        rolle: ap.rolle || 'Fachfirma',
+        telefon: ap.telefon || ff.kontakt.telefon,
+        email: ap.email || ff.kontakt.email,
+        istReadOnly: true as const,
+        quelleTyp: 'fachfirma' as const,
+        quelleId: ff.id
+      }));
+    }
+    // Fallback: Legacy-Ansprechpartner oder Firmenname
+    return [{
+      id: `ff-${ff.id}`,
+      name: ff.kontakt.ansprechpartner || ff.name,
+      firma: ff.firma,
+      rolle: 'Fachfirma',
+      telefon: ff.kontakt.telefon,
+      email: ff.kontakt.email,
+      istReadOnly: true as const,
+      quelleTyp: 'fachfirma' as const,
+      quelleId: ff.id
+    }];
+  });
 
   // Stakeholder nach Kategorie gruppieren
   const stakeholderNachKategorie = (kategorie: AlleKategorienTyp): (Stakeholder | VirtuellerStakeholder)[] => {
@@ -319,10 +359,10 @@ const TabStakeholder: React.FC<Props> = ({ projekt, onUpdate }) => {
                   <select
                     value={formData.kategorie}
                     onChange={e => setFormData({ ...formData, kategorie: e.target.value as StakeholderKategorie })}
-                    className="input-field"
+                    className="input-field font-sans"
                   >
                     {EditierbareKategorien.map(kat => (
-                      <option key={kat} value={kat}>{KategorieLabels[kat]}</option>
+                      <option key={kat} value={kat} className="font-sans">{KategorieLabels[kat]}</option>
                     ))}
                   </select>
                 </div>
