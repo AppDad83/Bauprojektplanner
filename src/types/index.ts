@@ -372,6 +372,9 @@ export interface Projekt {
   rechnungsRegelung?: string;
   feeRegelung?: string;
 
+  // Budget-Allokation für manuelle Kategorien
+  budgetAllokation?: BudgetAllokation;
+
   // Meta
   notizen?: string;
   erstelltAm: string;
@@ -412,6 +415,64 @@ export interface BudgetUebersicht {
   summeRechnungen: number;
   auslastungProzent: number;
   ampel: AmpelStatus;
+}
+
+// ============================================
+// KOSTENGRUPPEN NACH DIN 276
+// ============================================
+
+// Kostengruppen-Typen nach DIN 276
+export type KostengruppeTyp =
+  | 'fachplaner'           // KG 730, 740
+  | 'fachfirmen'           // KG 300-600
+  | 'feeProjectsteuerung'  // KG 710
+  | 'weitereBaunebenkosten' // KG 720, 750, 760, 790
+  | 'finanzierung'         // KG 800
+  | 'risikoreserve';       // KG 999
+
+// Mapping DIN-Nummern zu Kategorien
+export const DIN_KOSTENGRUPPEN_MAPPING: Record<KostengruppeTyp, string[]> = {
+  fachplaner: ['730', '740'],
+  fachfirmen: ['300', '310', '320', '330', '340', '350', '360', '370', '390',
+               '400', '410', '420', '430', '440', '450', '460', '470', '480', '490',
+               '500', '600'],
+  feeProjectsteuerung: ['710'],
+  weitereBaunebenkosten: ['720', '750', '760', '790'],
+  finanzierung: ['800', '810', '820', '830', '890'],
+  risikoreserve: ['999']
+};
+
+// Farben und Labels für Budget-Kategorien
+export const BUDGET_KATEGORIE_CONFIG: Record<KostengruppeTyp, { label: string; farbe: string; chartColor: string }> = {
+  fachplaner: { label: 'Fachplaner-Budget', farbe: 'bg-blue-500', chartColor: '#3B82F6' },
+  fachfirmen: { label: 'Fachfirmen-Budget', farbe: 'bg-green-500', chartColor: '#22C55E' },
+  feeProjectsteuerung: { label: 'Fee Projektsteuerung', farbe: 'bg-yellow-500', chartColor: '#EAB308' },
+  weitereBaunebenkosten: { label: 'Weitere Baunebenkosten', farbe: 'bg-orange-500', chartColor: '#F97316' },
+  finanzierung: { label: 'Finanzierung', farbe: 'bg-purple-500', chartColor: '#A855F7' },
+  risikoreserve: { label: 'Risikoreserve', farbe: 'bg-gray-500', chartColor: '#6B7280' }
+};
+
+// Budget-Allokation für manuelle Kategorien
+export interface BudgetAllokation {
+  weitereBaunebenkostenEstimate?: number;
+  finanzierungEstimate?: number;
+  risikoreservePercent?: number;
+  // HINWEIS: feeProjectsteuerung wird aus existierenden feeRechnungen berechnet!
+}
+
+// Extended Budget-Übersicht mit allen Kategorien
+export interface ExtendedBudgetUebersicht {
+  kategorien: Record<KostengruppeTyp, {
+    kostenschaetzung: number;
+    kostenberechnung: number;
+    kostenfeststellung: number;
+    differenzKBProzent: number;  // (KB-KS)/KS * 100
+    differenzKFProzent: number;  // (KF-KB)/KB * 100
+    auslastungProzent: number;   // KF/KB * 100
+  }>;
+  gesamtKostenschaetzung: number;
+  gesamtKostenberechnung: number;
+  gesamtKostenfeststellung: number;
 }
 
 // Standard DIN 276 Gewerke-Liste

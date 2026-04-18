@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { AppDaten, Projekt, ProjektStatus, Fachfirma, Fachplaner, BuergschaftDaten, RechnungSicherheiten, Mangel, Ansprechpartner } from '@/types';
+import { AppDaten, Projekt, ProjektStatus, Fachfirma, Fachplaner, BuergschaftDaten, RechnungSicherheiten, Mangel, Ansprechpartner, BudgetAllokation } from '@/types';
 import { erstelleLeereAppDaten, getJsonDateiname, generateId } from './utils';
 
 // Migration: Alte Status-Werte (gruen/gelb/rot) auf neue konvertieren
@@ -131,6 +131,31 @@ function migriereMaengelDaten(daten: AppDaten): AppDaten {
         } as Mangel;
       })
     }))
+  };
+}
+
+// Migration: Budget-Allokation initialisieren
+function migriereBudgetAllokation(daten: AppDaten): AppDaten {
+  return {
+    ...daten,
+    projekte: daten.projekte.map(projekt => {
+      // Wenn bereits budgetAllokation vorhanden, überspringen
+      if (projekt.budgetAllokation !== undefined) {
+        return projekt;
+      }
+
+      // Initialisiere leere budgetAllokation
+      const budgetAllokation: BudgetAllokation = {
+        weitereBaunebenkostenEstimate: 0,
+        finanzierungEstimate: 0,
+        risikoreservePercent: 0
+      };
+
+      return {
+        ...projekt,
+        budgetAllokation
+      };
+    })
   };
 }
 
@@ -287,6 +312,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           migriert = migriereMaengelDaten(migriert);
           // Migration: Ansprechpartner-Daten migrieren
           migriert = migrierAnsprechpartner(migriert);
+          // Migration: Budget-Allokation initialisieren
+          migriert = migriereBudgetAllokation(migriert);
 
           // Versionswarnung prüfen
           if (letztesSpeicherdatum) {

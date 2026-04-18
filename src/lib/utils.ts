@@ -1,5 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
-import { AmpelStatus, AppDaten, Projekt, AHO_PHASEN, BudgetUebersicht, FristWarnung } from '@/types';
+import {
+  AmpelStatus,
+  AppDaten,
+  Projekt,
+  AHO_PHASEN,
+  BudgetUebersicht,
+  FristWarnung,
+  KostengruppeTyp,
+  DIN_KOSTENGRUPPEN_MAPPING,
+  ExtendedBudgetUebersicht
+} from '@/types';
 
 // UUID Generator
 export const generateId = (): string => uuidv4();
@@ -357,4 +367,197 @@ export const getTimestamp = (): string => {
 // Dateiname für JSON-Export
 export const getJsonDateiname = (): string => {
   return `baupm_${getTimestamp()}.json`;
+};
+
+// ============================================
+// EXTENDED BUDGET-FUNKTIONEN (DIN 276)
+// ============================================
+
+// Mappt eine DIN-Nummer zur Kostengruppen-Kategorie
+export const getKostengruppeFromDIN = (dinNummer: string): KostengruppeTyp | null => {
+  // Prüfe nur die ersten 3 Ziffern (Hauptgruppe)
+  const dinPrefix = dinNummer.substring(0, 3);
+
+  for (const [kategorie, dinNummern] of Object.entries(DIN_KOSTENGRUPPEN_MAPPING)) {
+    if (dinNummern.includes(dinPrefix)) {
+      return kategorie as KostengruppeTyp;
+    }
+  }
+  return null;
+};
+
+// Berechnet Kostenschätzung pro Kategorie aus Gewerken
+export const berechneKostenschaetzungNachKategorie = (projekt: Projekt): Record<KostengruppeTyp, number> => {
+  const result: Record<KostengruppeTyp, number> = {
+    fachplaner: 0,
+    fachfirmen: 0,
+    feeProjectsteuerung: 0,
+    weitereBaunebenkosten: 0,
+    finanzierung: 0,
+    risikoreserve: 0
+  };
+
+  // Summiere Kostenschätzung aus Gewerken nach DIN-Nummer
+  projekt.gewerke.forEach(gewerk => {
+    const kategorie = getKostengruppeFromDIN(gewerk.dinNummer);
+    if (kategorie && gewerk.kostenschaetzung) {
+      result[kategorie] += gewerk.kostenschaetzung;
+    }
+  });
+
+  // Fee Projektsteuerung aus Gesamtbudget * feePercent berechnen
+  const gesamtBudget = projekt.projektbudgetFreigegeben || 0;
+  result.feeProjectsteuerung = gesamtBudget * (projekt.feePercent / 100);
+
+  // Manuelle Allokationen hinzufügen
+  if (projekt.budgetAllokation) {
+    if (projekt.budgetAllokation.weitereBaunebenkostenEstimate) {
+      result.weitereBaunebenkosten += projekt.budgetAllokation.weitereBaunebenkostenEstimate;
+    }
+    if (projekt.budgetAllokation.finanzierungEstimate) {
+      result.finanzierung += projekt.budgetAllokation.finanzierungEstimate;
+    }
+    if (projekt.budgetAllokation.risikoreservePercent) {
+      result.risikoreserve = gesamtBudget * (projekt.budgetAllokation.risikoreservePercent / 100);
+    }
+  }
+
+  return result;
+};
+
+// Berechnet Kostenberechnung pro Kategorie (aus freigegebenen Angeboten)
+export const berechneKostenberechnungNachKategorie = (projekt: Projekt): Record<KostengruppeTyp, number> => {
+  const result: Record<KostengruppeTyp, number> = {
+    fachplaner: 0,
+    fachfirmen: 0,
+    feeProjectsteuerung: 0,
+    weitereBaunebenkosten: 0,
+    finanzierung: 0,
+    risikoreserve: 0
+  };
+
+  // Fachplaner-Budgets
+  result.fachplaner = projekt.fachplaner.reduce(
+    (sum, fp) => sum + berechneEffektivesBudgetAusAngeboten(fp.angebote), 0
+  );
+
+  // Fachfirmen-Budgets
+  result.fachfirmen = projekt.fachfirmen.reduce(
+    (sum, ff) => sum + berechneEffektivesBudgetAusAngeboten(ff.angebote), 0
+  );
+
+  // Kostenberechnung aus Gewerken (falls vorhanden)
+  projekt.gewerke.forEach(gewerk => {
+    const kategorie = getKostengruppeFromDIN(gewerk.dinNummer);
+    if (kategorie && gewerk.kostenberechnung) {
+      // Für Kategorien ohne Angebote: Kostenberechnung aus Gewerken verwenden
+      if (kategorie !== 'fachplaner' && kategorie !== 'fachfirmen') {
+        result[kategorie] += gewerk.kostenberechnung;
+      }
+    }
+  });
+
+  // Fee Projektsteuerung: Summe der Fee-Rechnungen als Kostenberechnung
+  // oder geschätzt aus Gesamtbudget * feePercent
+  const feeSummeRechnungen = projekt.feeRechnungen.reduce((sum, r) => sum + r.betragNetto, 0);
+  const gesamtBudget = projekt.projektbudgetFreigegeben || 0;
+  result.feeProjectsteuerung = feeSummeRechnungen > 0
+    ? feeSummeRechnungen
+    : gesamtBudget * (projekt.feePercent / 100);
+
+  // Manuelle Allokationen
+  if (projekt.budgetAllokation) {
+    if (projekt.budgetAllokation.weitereBaunebenkostenEstimate) {
+      result.weitereBaunebenkosten = projekt.budgetAllokation.weitereBaunebenkostenEstimate;
+    }
+    if (projekt.budgetAllokation.finanzierungEstimate) {
+      result.finanzierung = projekt.budgetAllokation.finanzierungEstimate;
+    }
+    if (projekt.budgetAllokation.risikoreservePercent) {
+      result.risikoreserve = gesamtBudget * (projekt.budgetAllokation.risikoreservePercent / 100);
+    }
+  }
+
+  return result;
+};
+
+// Berechnet Kostenfeststellung pro Kategorie (bezahlte Rechnungen)
+export const berechneKostenfeststellungNachKategorie = (projekt: Projekt): Record<KostengruppeTyp, number> => {
+  const result: Record<KostengruppeTyp, number> = {
+    fachplaner: 0,
+    fachfirmen: 0,
+    feeProjectsteuerung: 0,
+    weitereBaunebenkosten: 0,
+    finanzierung: 0,
+    risikoreserve: 0
+  };
+
+  // Fachplaner: Summe bezahlter Rechnungen
+  result.fachplaner = projekt.fachplaner.reduce((sum, fp) => {
+    return sum + fp.rechnungen
+      .filter(r => r.bezahltDatum)
+      .reduce((s, r) => s + r.betragNetto, 0);
+  }, 0);
+
+  // Fachfirmen: Summe bezahlter Rechnungen
+  result.fachfirmen = projekt.fachfirmen.reduce((sum, ff) => {
+    return sum + ff.rechnungen
+      .filter(r => r.bezahltDatum)
+      .reduce((s, r) => s + r.betragNetto, 0);
+  }, 0);
+
+  // Fee Projektsteuerung: Summe aller Fee-Rechnungen
+  result.feeProjectsteuerung = projekt.feeRechnungen.reduce((sum, r) => sum + r.betragNetto, 0);
+
+  return result;
+};
+
+// Kombinierte Extended Budget-Übersicht
+export const berechneExtendedBudgetUebersicht = (projekt: Projekt): ExtendedBudgetUebersicht => {
+  const kostenschaetzung = berechneKostenschaetzungNachKategorie(projekt);
+  const kostenberechnung = berechneKostenberechnungNachKategorie(projekt);
+  const kostenfeststellung = berechneKostenfeststellungNachKategorie(projekt);
+
+  const kategorien = {} as ExtendedBudgetUebersicht['kategorien'];
+  const alleKategorien: KostengruppeTyp[] = [
+    'fachplaner', 'fachfirmen', 'feeProjectsteuerung',
+    'weitereBaunebenkosten', 'finanzierung', 'risikoreserve'
+  ];
+
+  let gesamtKostenschaetzung = 0;
+  let gesamtKostenberechnung = 0;
+  let gesamtKostenfeststellung = 0;
+
+  alleKategorien.forEach(kat => {
+    const ks = kostenschaetzung[kat];
+    const kb = kostenberechnung[kat];
+    const kf = kostenfeststellung[kat];
+
+    // Differenz KB zu KS in Prozent
+    const differenzKBProzent = ks > 0 ? ((kb - ks) / ks) * 100 : 0;
+    // Differenz KF zu KB in Prozent
+    const differenzKFProzent = kb > 0 ? ((kf - kb) / kb) * 100 : 0;
+    // Auslastung KF/KB in Prozent
+    const auslastungProzent = kb > 0 ? (kf / kb) * 100 : 0;
+
+    kategorien[kat] = {
+      kostenschaetzung: ks,
+      kostenberechnung: kb,
+      kostenfeststellung: kf,
+      differenzKBProzent,
+      differenzKFProzent,
+      auslastungProzent
+    };
+
+    gesamtKostenschaetzung += ks;
+    gesamtKostenberechnung += kb;
+    gesamtKostenfeststellung += kf;
+  });
+
+  return {
+    kategorien,
+    gesamtKostenschaetzung,
+    gesamtKostenberechnung,
+    gesamtKostenfeststellung
+  };
 };

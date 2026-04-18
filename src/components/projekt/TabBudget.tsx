@@ -2,20 +2,35 @@
 
 import React from 'react';
 import { Projekt } from '@/types';
-import { formatDatum, formatWaehrung, berechneBudgetUebersicht, berechneEffektivesBudgetAusAngeboten } from '@/lib/utils';
+import {
+  formatDatum,
+  formatWaehrung,
+  berechneBudgetUebersicht,
+  berechneEffektivesBudgetAusAngeboten,
+  berechneExtendedBudgetUebersicht
+} from '@/lib/utils';
+import BudgetPieChart from '@/components/charts/BudgetPieChart';
+import BudgetAuslastungBars from '@/components/charts/BudgetAuslastungBars';
+import BudgetUebersichtTabelle from './BudgetUebersichtTabelle';
 
 interface Props {
   projekt: Projekt;
   onUpdate: (projekt: Projekt) => void;
 }
 
-const TabBudget: React.FC<Props> = ({ projekt }) => {
+const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
   // Berechne das freigegebene Budget als Summe aller genehmigten Budgethistorie-Einträge
   const berechnetesFreigegebenesbudget = projekt.projektbudgetHistorie
     .filter(e => e.freigabeDatum && !e.abgelehntAm)
     .reduce((sum, e) => sum + e.betragNetto, 0);
 
   const budget = berechneBudgetUebersicht({
+    ...projekt,
+    projektbudgetFreigegeben: berechnetesFreigegebenesbudget
+  });
+
+  // Extended Budget-Übersicht für neue Komponenten
+  const extendedBudget = berechneExtendedBudgetUebersicht({
     ...projekt,
     projektbudgetFreigegeben: berechnetesFreigegebenesbudget
   });
@@ -67,7 +82,32 @@ const TabBudget: React.FC<Props> = ({ projekt }) => {
         </div>
       </div>
 
-      {/* Budgetvergleich visuell */}
+      {/* NEU: Kreisdiagramm und Auslastungsbalken */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Kreisdiagramm */}
+        <div className="card">
+          <h3 className="font-semibold mb-4">Projektbudget-Verteilung</h3>
+          <BudgetPieChart budgetUebersicht={extendedBudget} />
+        </div>
+
+        {/* Auslastungsbalken */}
+        <div className="card">
+          <h3 className="font-semibold mb-4">Budgetauslastung</h3>
+          <BudgetAuslastungBars
+            budgetUebersicht={extendedBudget}
+            projektbudgetFreigegeben={berechnetesFreigegebenesbudget}
+          />
+        </div>
+      </div>
+
+      {/* NEU: Budgetübersicht-Tabelle nach DIN 276 */}
+      <BudgetUebersichtTabelle
+        projekt={{ ...projekt, projektbudgetFreigegeben: berechnetesFreigegebenesbudget }}
+        budgetUebersicht={extendedBudget}
+        onUpdate={onUpdate}
+      />
+
+      {/* Budgetvergleich visuell (bestehend) */}
       <div className="card">
         <h3 className="font-semibold mb-4">Budget vs. Kosten</h3>
         <div className="space-y-4">
