@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KostengruppeTyp, BUDGET_KATEGORIE_CONFIG, ExtendedBudgetUebersicht } from '@/types';
+import { KostengruppeTyp, BUDGET_KATEGORIE_CONFIG, ExtendedBudgetUebersicht, Kostenstufe, KOSTENSTUFE_LABELS } from '@/types';
 import { formatWaehrung } from '@/lib/utils';
 
 interface Props {
   budgetUebersicht: ExtendedBudgetUebersicht;
+  aktuelleKostenstufe: Kostenstufe;
 }
 
 interface PieSegment {
@@ -18,20 +19,45 @@ interface PieSegment {
   label: string;
 }
 
-const BudgetPieChart: React.FC<Props> = ({ budgetUebersicht }) => {
+const BudgetPieChart: React.FC<Props> = ({ budgetUebersicht, aktuelleKostenstufe }) => {
   const [hoveredSegment, setHoveredSegment] = useState<KostengruppeTyp | null>(null);
 
-  // Berechne Segmente basierend auf Kostenberechnung
+  // Hole Wert basierend auf aktueller Kostenstufe
+  const getWert = (kat: KostengruppeTyp): number => {
+    const k = budgetUebersicht.kategorien[kat];
+    switch (aktuelleKostenstufe) {
+      case 'ks': return k.kostenschaetzung;
+      case 'kb': return k.kostenberechnung;
+      case 'kv': return k.kostenvoranschlag;
+      case 'ka': return k.kostenanschlag;
+      case 'kf': return k.kostenfeststellung;
+      default: return k.kostenberechnung;
+    }
+  };
+
+  // Berechne Gesamtwert basierend auf aktueller Kostenstufe
+  const getGesamtwert = (): number => {
+    switch (aktuelleKostenstufe) {
+      case 'ks': return budgetUebersicht.gesamtKostenschaetzung;
+      case 'kb': return budgetUebersicht.gesamtKostenberechnung;
+      case 'kv': return budgetUebersicht.gesamtKostenvoranschlag;
+      case 'ka': return budgetUebersicht.gesamtKostenanschlag;
+      case 'kf': return budgetUebersicht.gesamtKostenfeststellung;
+      default: return budgetUebersicht.gesamtKostenberechnung;
+    }
+  };
+
+  // Berechne Segmente basierend auf aktueller Kostenstufe
   const kategorien: KostengruppeTyp[] = [
     'fachfirmen', 'fachplaner', 'feeProjectsteuerung',
     'weitereBaunebenkosten', 'finanzierung', 'risikoreserve'
   ];
 
-  const gesamtwert = budgetUebersicht.gesamtKostenberechnung || 1; // Verhindere Division durch 0
+  const gesamtwert = getGesamtwert() || 1; // Verhindere Division durch 0
 
   let currentAngle = -90; // Start oben
   const segments: PieSegment[] = kategorien.map(kat => {
-    const wert = budgetUebersicht.kategorien[kat].kostenberechnung;
+    const wert = getWert(kat);
     const prozent = (wert / gesamtwert) * 100;
     const angleSize = (prozent / 100) * 360;
     const startAngle = currentAngle;
@@ -135,10 +161,13 @@ const BudgetPieChart: React.FC<Props> = ({ budgetUebersicht }) => {
 
       {/* Legende */}
       <div className="flex flex-col gap-2 text-sm">
+        <div className="text-xs text-gray-500 mb-1">
+          {KOSTENSTUFE_LABELS[aktuelleKostenstufe]}
+        </div>
         {kategorien.map(kat => {
           const segment = segments.find(s => s.kategorie === kat);
           const config = BUDGET_KATEGORIE_CONFIG[kat];
-          const wert = budgetUebersicht.kategorien[kat].kostenberechnung;
+          const wert = getWert(kat);
           const prozent = gesamtwert > 0 ? (wert / gesamtwert) * 100 : 0;
 
           return (

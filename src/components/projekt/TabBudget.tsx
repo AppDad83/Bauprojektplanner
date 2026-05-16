@@ -1,13 +1,15 @@
 'use client';
 
 import React from 'react';
-import { Projekt } from '@/types';
+import { Projekt, KOSTENSTUFE_LABELS } from '@/types';
 import {
   formatDatum,
   formatWaehrung,
   berechneBudgetUebersicht,
   berechneEffektivesBudgetAusAngeboten,
-  berechneExtendedBudgetUebersicht
+  berechneExtendedBudgetUebersicht,
+  berechneAktuelleKostenstufe,
+  berechneProjektbudgetFreigegeben
 } from '@/lib/utils';
 import BudgetPieChart from '@/components/charts/BudgetPieChart';
 import BudgetAuslastungBars from '@/components/charts/BudgetAuslastungBars';
@@ -19,10 +21,11 @@ interface Props {
 }
 
 const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
-  // Berechne das freigegebene Budget als Summe aller genehmigten Budgethistorie-Einträge
-  const berechnetesFreigegebenesbudget = projekt.projektbudgetHistorie
-    .filter(e => e.freigabeDatum && !e.abgelehntAm)
-    .reduce((sum, e) => sum + e.betragNetto, 0);
+  // Aktuelle Kostenstufe aus Projektphase
+  const aktuelleKostenstufe = berechneAktuelleKostenstufe(projekt.aktuellePhase);
+
+  // Projektbudget aus aktueller Phase berechnen (nicht mehr aus projektbudgetHistorie)
+  const berechnetesFreigegebenesbudget = berechneProjektbudgetFreigegeben(projekt);
 
   const budget = berechneBudgetUebersicht({
     ...projekt,
@@ -35,13 +38,22 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
     projektbudgetFreigegeben: berechnetesFreigegebenesbudget
   });
 
-  const summeNachtraegeFachplaner = projekt.nachtraege
-    .filter(n => n.istFachplaner && (n.status === 'genehmigt' || n.status === 'teilweise_genehmigt'))
-    .reduce((s, n) => s + (n.betragNettoGenehmigt || 0), 0);
+  // Summe freigegebener Rechnungen (neues Feld freigegebenDatum)
+  const summeFreigegeben = [
+    ...projekt.fachplaner.flatMap(fp => fp.rechnungen),
+    ...projekt.fachfirmen.flatMap(ff => ff.rechnungen)
+  ]
+    .filter(r => r.freigegebenDatum)
+    .reduce((sum, r) => sum + r.betragNetto, 0);
 
-  const summeNachtraegeFachfirmen = projekt.nachtraege
-    .filter(n => !n.istFachplaner && (n.status === 'genehmigt' || n.status === 'teilweise_genehmigt'))
-    .reduce((s, n) => s + (n.betragNettoGenehmigt || 0), 0);
+  // Summe bezahlter Rechnungen (KF)
+  const summeBezahlt = [
+    ...projekt.fachplaner.flatMap(fp => fp.rechnungen),
+    ...projekt.fachfirmen.flatMap(ff => ff.rechnungen)
+  ]
+    .filter(r => r.bezahltDatum)
+    .reduce((sum, r) => sum + r.betragNetto, 0)
+    + projekt.feeRechnungen.reduce((sum, r) => sum + r.betragNetto, 0);
 
   const alleRechnungen = [
     ...projekt.fachplaner.flatMap(fp => fp.rechnungen.map(r => ({
@@ -60,25 +72,41 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Budgetübersicht</h2>
 
-      {/* Hauptkennzahlen */}
+      {/* Hauptkennzahlen - 4 neue KPI-Karten */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Karte 1: Freigegebenes Projektbudget */}
         <div className="card">
-          <p className="text-sm text-apleona-gray-600">Freigegebenes Projektbudget</p>
-          <p className="text-2xl font-bold text-apleona-navy">{formatWaehrung(budget.projektbudgetFreigegeben)}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-apleona-gray-600">Summe Budgets (FP + FF)</p>
-          <p className="text-2xl font-bold text-apleona-navy">
-            {formatWaehrung(budget.summeFachplanerBudgets + budget.summeFachfirmenBudgets)}
+          <p className="text-sm text-apleona-gray-600">Projektbudget</p>
+          <p className="text-2xl font-bold text-apleona-navy">{formatWaehrung(berechnetesFreigegebenesbudget)}</p>
+          <p className="text-xs text-apleona-gray-500 mt-1">
+            {KOSTENSTUFE_LABELS[aktuelleKostenstufe]}
           </p>
         </div>
+        {/* Karte 2: Gesamtkosten (Kostenanschlag) */}
         <div className="card">
-          <p className="text-sm text-apleona-gray-600">Genehmigte Nachträge</p>
-          <p className="text-2xl font-bold text-status-yellow">{formatWaehrung(budget.summeGenehmigteNachtraege)}</p>
+          <p className="text-sm text-apleona-gray-600">Kostenanschlag (KA)</p>
+          <p className="text-2xl font-bold text-apleona-navy">
+            {formatWaehrung(extendedBudget.gesamtKostenanschlag)}
+          </p>
+          <p className="text-xs text-apleona-gray-500 mt-1">
+            Genehmigte Angebote
+          </p>
         </div>
+        {/* Karte 3: Freigegeben an Kunde */}
         <div className="card">
-          <p className="text-sm text-apleona-gray-600">Summe Rechnungen</p>
-          <p className="text-2xl font-bold text-status-green">{formatWaehrung(budget.summeRechnungen)}</p>
+          <p className="text-sm text-apleona-gray-600">Freigegeben an Kunde</p>
+          <p className="text-2xl font-bold text-status-yellow">{formatWaehrung(summeFreigegeben)}</p>
+          <p className="text-xs text-apleona-gray-500 mt-1">
+            Zur Zahlung freigegeben
+          </p>
+        </div>
+        {/* Karte 4: Bezahlt (KF) */}
+        <div className="card">
+          <p className="text-sm text-apleona-gray-600">Bezahlt (KF)</p>
+          <p className="text-2xl font-bold text-status-green">{formatWaehrung(summeBezahlt)}</p>
+          <p className="text-xs text-apleona-gray-500 mt-1">
+            Kostenfeststellung
+          </p>
         </div>
       </div>
 
@@ -87,7 +115,10 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
         {/* Kreisdiagramm */}
         <div className="card">
           <h3 className="font-semibold mb-4">Projektbudget-Verteilung</h3>
-          <BudgetPieChart budgetUebersicht={extendedBudget} />
+          <BudgetPieChart
+            budgetUebersicht={extendedBudget}
+            aktuelleKostenstufe={aktuelleKostenstufe}
+          />
         </div>
 
         {/* Auslastungsbalken */}
@@ -96,6 +127,7 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
           <BudgetAuslastungBars
             budgetUebersicht={extendedBudget}
             projektbudgetFreigegeben={berechnetesFreigegebenesbudget}
+            aktuelleKostenstufe={aktuelleKostenstufe}
           />
         </div>
       </div>
@@ -106,122 +138,6 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
         budgetUebersicht={extendedBudget}
         onUpdate={onUpdate}
       />
-
-      {/* Budgetvergleich visuell (bestehend) */}
-      <div className="card">
-        <h3 className="font-semibold mb-4">Budget vs. Kosten</h3>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Projektbudget</span>
-              <span>{formatWaehrung(budget.projektbudgetFreigegeben)}</span>
-            </div>
-            <div className="h-4 bg-apleona-gray-200 rounded">
-              <div className="h-full bg-apleona-navy rounded" style={{ width: '100%' }} />
-            </div>
-          </div>
-
-          {/* Aktuelle geplante Projektbudgetauslastung - gestapelter Balken */}
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="font-medium">Aktuelle geplante Projektbudgetauslastung</span>
-              <span>
-                {formatWaehrung(budget.summeFachplanerBudgets + budget.summeFachfirmenBudgets)}
-                {budget.projektbudgetFreigegeben > 0 && (
-                  <span className="ml-2 text-apleona-gray-500">
-                    ({((budget.summeFachplanerBudgets + budget.summeFachfirmenBudgets) / budget.projektbudgetFreigegeben * 100).toFixed(1)}%)
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="h-5 bg-apleona-gray-200 rounded flex overflow-hidden">
-              {/* Blau: Fachplaner-Budgets */}
-              <div
-                className="h-full bg-blue-500"
-                style={{
-                  width: `${budget.projektbudgetFreigegeben > 0
-                    ? (budget.summeFachplanerBudgets / budget.projektbudgetFreigegeben) * 100
-                    : 0}%`
-                }}
-                title={`Fachplaner: ${formatWaehrung(budget.summeFachplanerBudgets)}`}
-              />
-              {/* Grün: Fachfirmen-Budgets */}
-              <div
-                className="h-full bg-green-500"
-                style={{
-                  width: `${budget.projektbudgetFreigegeben > 0
-                    ? (budget.summeFachfirmenBudgets / budget.projektbudgetFreigegeben) * 100
-                    : 0}%`
-                }}
-                title={`Fachfirmen: ${formatWaehrung(budget.summeFachfirmenBudgets)}`}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-apleona-gray-500 mt-1">
-              <div className="flex items-center gap-4">
-                <span className="flex items-center">
-                  <span className="w-3 h-3 bg-blue-500 rounded mr-1"></span>
-                  Fachplaner: {formatWaehrung(budget.summeFachplanerBudgets)}
-                </span>
-                <span className="flex items-center">
-                  <span className="w-3 h-3 bg-green-500 rounded mr-1"></span>
-                  Fachfirmen: {formatWaehrung(budget.summeFachfirmenBudgets)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Fachplaner-Budgets</span>
-              <span>{formatWaehrung(budget.summeFachplanerBudgets)}</span>
-            </div>
-            <div className="h-4 bg-apleona-gray-200 rounded">
-              <div
-                className="h-full bg-blue-500 rounded"
-                style={{ width: `${budget.projektbudgetFreigegeben > 0 ? (budget.summeFachplanerBudgets / budget.projektbudgetFreigegeben) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Fachfirmen-Budgets</span>
-              <span>{formatWaehrung(budget.summeFachfirmenBudgets)}</span>
-            </div>
-            <div className="h-4 bg-apleona-gray-200 rounded">
-              <div
-                className="h-full bg-green-500 rounded"
-                style={{ width: `${budget.projektbudgetFreigegeben > 0 ? (budget.summeFachfirmenBudgets / budget.projektbudgetFreigegeben) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="font-medium">Gesamtauslastung</span>
-              <span className={`font-medium ${budget.ampel === 'rot' ? 'text-status-red' : budget.ampel === 'gelb' ? 'text-status-yellow' : ''}`}>
-                {budget.auslastungProzent.toFixed(1)}%
-              </span>
-            </div>
-            <div className="h-6 bg-apleona-gray-200 rounded relative">
-              <div
-                className={`h-full rounded ${
-                  budget.ampel === 'rot' ? 'bg-status-red' :
-                  budget.ampel === 'gelb' ? 'bg-status-yellow' : 'bg-status-green'
-                }`}
-                style={{ width: `${Math.min(budget.auslastungProzent, 100)}%` }}
-              />
-              {/* Markierung bei 80% */}
-              <div className="absolute top-0 h-full w-0.5 bg-status-yellow" style={{ left: '80%' }} />
-            </div>
-            <div className="flex justify-between text-xs text-apleona-gray-500 mt-1">
-              <span>0%</span>
-              <span>80% Warnung</span>
-              <span>100%</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Budget nach Beteiligten */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -236,13 +152,16 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Firma</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Budget</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Rechnungen</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Bezahlt (KF)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apleona-gray-200">
                 {projekt.fachplaner.map(fp => {
-                  const summe = fp.rechnungen.reduce((s, r) => s + r.betragNetto, 0);
+                  // BUG FIX: Nur bezahlte Rechnungen zählen
+                  const summe = fp.rechnungen
+                    .filter(r => r.bezahltDatum)
+                    .reduce((s, r) => s + r.betragNetto, 0);
                   const effBudget = berechneEffektivesBudgetAusAngeboten(fp.angebote);
                   const prozent = effBudget > 0 ? (summe / effBudget) * 100 : 0;
                   return (
@@ -258,17 +177,13 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
                   <td className="px-3 py-2 text-sm">Summe</td>
                   <td className="px-3 py-2 text-sm text-right">{formatWaehrung(budget.summeFachplanerBudgets)}</td>
                   <td className="px-3 py-2 text-sm text-right">
-                    {formatWaehrung(projekt.fachplaner.reduce((s, fp) => s + fp.rechnungen.reduce((sr, r) => sr + r.betragNetto, 0), 0))}
+                    {formatWaehrung(projekt.fachplaner.reduce((s, fp) =>
+                      s + fp.rechnungen.filter(r => r.bezahltDatum).reduce((sr, r) => sr + r.betragNetto, 0), 0))}
                   </td>
                   <td className="px-3 py-2 text-sm text-right">-</td>
                 </tr>
               </tbody>
             </table>
-          )}
-          {summeNachtraegeFachplaner > 0 && (
-            <p className="mt-2 text-sm text-status-yellow">
-              + {formatWaehrung(summeNachtraegeFachplaner)} genehmigte Nachträge
-            </p>
           )}
         </div>
 
@@ -283,13 +198,16 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-apleona-gray-500">Firma</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Budget</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Rechnungen</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Bezahlt (KF)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apleona-gray-200">
                 {projekt.fachfirmen.map(ff => {
-                  const summe = ff.rechnungen.reduce((s, r) => s + r.betragNetto, 0);
+                  // BUG FIX: Nur bezahlte Rechnungen zählen
+                  const summe = ff.rechnungen
+                    .filter(r => r.bezahltDatum)
+                    .reduce((s, r) => s + r.betragNetto, 0);
                   const effBudget = berechneEffektivesBudgetAusAngeboten(ff.angebote);
                   const prozent = effBudget > 0 ? (summe / effBudget) * 100 : 0;
                   return (
@@ -305,17 +223,13 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
                   <td className="px-3 py-2 text-sm">Summe</td>
                   <td className="px-3 py-2 text-sm text-right">{formatWaehrung(budget.summeFachfirmenBudgets)}</td>
                   <td className="px-3 py-2 text-sm text-right">
-                    {formatWaehrung(projekt.fachfirmen.reduce((s, ff) => s + ff.rechnungen.reduce((sr, r) => sr + r.betragNetto, 0), 0))}
+                    {formatWaehrung(projekt.fachfirmen.reduce((s, ff) =>
+                      s + ff.rechnungen.filter(r => r.bezahltDatum).reduce((sr, r) => sr + r.betragNetto, 0), 0))}
                   </td>
                   <td className="px-3 py-2 text-sm text-right">-</td>
                 </tr>
               </tbody>
             </table>
-          )}
-          {summeNachtraegeFachfirmen > 0 && (
-            <p className="mt-2 text-sm text-status-yellow">
-              + {formatWaehrung(summeNachtraegeFachfirmen)} genehmigte Nachträge
-            </p>
           )}
         </div>
       </div>
@@ -337,6 +251,7 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
                   <th className="px-3 py-2 text-right text-xs font-medium text-apleona-gray-500">Betrag netto</th>
                   <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Geprüft</th>
                   <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Freigegeben</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-apleona-gray-500">Bezahlt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apleona-gray-200">
@@ -350,14 +265,30 @@ const TabBudget: React.FC<Props> = ({ projekt, onUpdate }) => {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-sm">
-                      {r.typ === 'schlussrechnung' ? <span className="badge-warning">Schlussrechnung</span> : r.typ}
+                      {r.typ === 'schlussrechnung' ? (
+                        <span className="badge-warning">Schlussrechnung</span>
+                      ) : r.typ === 'teilrechnung' ? (
+                        'Teilrechnung'
+                      ) : r.typ === 'anzahlung' ? (
+                        'Anzahlung'
+                      ) : r.typ}
                     </td>
                     <td className="px-3 py-2 text-sm text-right font-medium">{formatWaehrung(r.betragNetto)}</td>
-                    <td className="px-3 py-2 text-center">
-                      {r.geprueft ? <span className="text-status-green">✓</span> : <span className="text-apleona-gray-300">-</span>}
+                    {/* BUG FIX: Korrekte Felder lesen */}
+                    <td className="px-3 py-2 text-center text-xs">
+                      {r.geprueftDatum
+                        ? <span className="text-status-green" title={formatDatum(r.geprueftDatum)}>✓</span>
+                        : <span className="text-apleona-gray-300">–</span>}
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      {r.freigegeben ? <span className="text-status-green">✓</span> : <span className="text-apleona-gray-300">-</span>}
+                    <td className="px-3 py-2 text-center text-xs">
+                      {r.freigegebenDatum
+                        ? <span className="text-status-green" title={formatDatum(r.freigegebenDatum)}>✓</span>
+                        : <span className="text-apleona-gray-300">–</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs">
+                      {r.bezahltDatum
+                        ? <span className="text-status-green" title={formatDatum(r.bezahltDatum)}>✓</span>
+                        : <span className="text-apleona-gray-300">–</span>}
                     </td>
                   </tr>
                 ))}

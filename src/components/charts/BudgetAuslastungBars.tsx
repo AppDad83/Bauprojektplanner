@@ -1,12 +1,13 @@
 'use client';
 
 import React from 'react';
-import { KostengruppeTyp, BUDGET_KATEGORIE_CONFIG, ExtendedBudgetUebersicht } from '@/types';
+import { KostengruppeTyp, BUDGET_KATEGORIE_CONFIG, ExtendedBudgetUebersicht, Kostenstufe } from '@/types';
 import { formatWaehrung } from '@/lib/utils';
 
 interface Props {
   budgetUebersicht: ExtendedBudgetUebersicht;
   projektbudgetFreigegeben: number;
+  aktuelleKostenstufe: Kostenstufe;
 }
 
 interface AuslastungsBalken {
@@ -18,10 +19,28 @@ interface AuslastungsBalken {
   farbe: string;
 }
 
-const BudgetAuslastungBars: React.FC<Props> = ({ budgetUebersicht, projektbudgetFreigegeben }) => {
-  // Gesamt-Auslastung
-  const gesamtBudget = projektbudgetFreigegeben || budgetUebersicht.gesamtKostenberechnung || 0;
+const BudgetAuslastungBars: React.FC<Props> = ({ budgetUebersicht, projektbudgetFreigegeben, aktuelleKostenstufe }) => {
+  // Hole Budget basierend auf aktueller Kostenstufe
+  const getBudget = (kat: KostengruppeTyp): number => {
+    const k = budgetUebersicht.kategorien[kat];
+    switch (aktuelleKostenstufe) {
+      case 'ks': return k.kostenschaetzung;
+      case 'kb': return k.kostenberechnung;
+      case 'kv': return k.kostenvoranschlag;
+      case 'ka': return k.kostenanschlag;
+      case 'kf': return k.kostenfeststellung;
+      default: return k.kostenanschlag;
+    }
+  };
+
+  // Gesamt-Auslastung basierend auf aktueller Kostenstufe
+  const gesamtBudget = projektbudgetFreigegeben || budgetUebersicht.gesamtKostenanschlag || 0;
   const gesamtBezahlt = budgetUebersicht.gesamtKostenfeststellung;
+
+  const fachplanerBudget = getBudget('fachplaner');
+  const fachfirmenBudget = getBudget('fachfirmen');
+  const baunebenkostenBudget = getBudget('weitereBaunebenkosten') + getBudget('feeProjectsteuerung');
+  const finanzierungBudget = getBudget('finanzierung');
 
   const balken: AuslastungsBalken[] = [
     {
@@ -34,41 +53,40 @@ const BudgetAuslastungBars: React.FC<Props> = ({ budgetUebersicht, projektbudget
     },
     {
       label: 'Fachplaner-Auslastung',
-      budget: budgetUebersicht.kategorien.fachplaner.kostenberechnung,
+      budget: fachplanerBudget,
       bezahlt: budgetUebersicht.kategorien.fachplaner.kostenfeststellung,
-      verbleibend: Math.max(0, budgetUebersicht.kategorien.fachplaner.kostenberechnung - budgetUebersicht.kategorien.fachplaner.kostenfeststellung),
-      auslastungProzent: budgetUebersicht.kategorien.fachplaner.auslastungProzent,
+      verbleibend: Math.max(0, fachplanerBudget - budgetUebersicht.kategorien.fachplaner.kostenfeststellung),
+      auslastungProzent: fachplanerBudget > 0 ? (budgetUebersicht.kategorien.fachplaner.kostenfeststellung / fachplanerBudget) * 100 : 0,
       farbe: BUDGET_KATEGORIE_CONFIG.fachplaner.chartColor
     },
     {
       label: 'Fachfirmen-Auslastung',
-      budget: budgetUebersicht.kategorien.fachfirmen.kostenberechnung,
+      budget: fachfirmenBudget,
       bezahlt: budgetUebersicht.kategorien.fachfirmen.kostenfeststellung,
-      verbleibend: Math.max(0, budgetUebersicht.kategorien.fachfirmen.kostenberechnung - budgetUebersicht.kategorien.fachfirmen.kostenfeststellung),
-      auslastungProzent: budgetUebersicht.kategorien.fachfirmen.auslastungProzent,
+      verbleibend: Math.max(0, fachfirmenBudget - budgetUebersicht.kategorien.fachfirmen.kostenfeststellung),
+      auslastungProzent: fachfirmenBudget > 0 ? (budgetUebersicht.kategorien.fachfirmen.kostenfeststellung / fachfirmenBudget) * 100 : 0,
       farbe: BUDGET_KATEGORIE_CONFIG.fachfirmen.chartColor
     },
     {
       label: 'Baunebenkosten-Auslastung',
-      budget: budgetUebersicht.kategorien.weitereBaunebenkosten.kostenberechnung + budgetUebersicht.kategorien.feeProjectsteuerung.kostenberechnung,
+      budget: baunebenkostenBudget,
       bezahlt: budgetUebersicht.kategorien.weitereBaunebenkosten.kostenfeststellung + budgetUebersicht.kategorien.feeProjectsteuerung.kostenfeststellung,
       verbleibend: Math.max(0,
-        (budgetUebersicht.kategorien.weitereBaunebenkosten.kostenberechnung + budgetUebersicht.kategorien.feeProjectsteuerung.kostenberechnung) -
+        baunebenkostenBudget -
         (budgetUebersicht.kategorien.weitereBaunebenkosten.kostenfeststellung + budgetUebersicht.kategorien.feeProjectsteuerung.kostenfeststellung)
       ),
       auslastungProzent: (() => {
-        const budget = budgetUebersicht.kategorien.weitereBaunebenkosten.kostenberechnung + budgetUebersicht.kategorien.feeProjectsteuerung.kostenberechnung;
         const bezahlt = budgetUebersicht.kategorien.weitereBaunebenkosten.kostenfeststellung + budgetUebersicht.kategorien.feeProjectsteuerung.kostenfeststellung;
-        return budget > 0 ? (bezahlt / budget) * 100 : 0;
+        return baunebenkostenBudget > 0 ? (bezahlt / baunebenkostenBudget) * 100 : 0;
       })(),
       farbe: BUDGET_KATEGORIE_CONFIG.weitereBaunebenkosten.chartColor
     },
     {
       label: 'Finanzierung-Auslastung',
-      budget: budgetUebersicht.kategorien.finanzierung.kostenberechnung,
+      budget: finanzierungBudget,
       bezahlt: budgetUebersicht.kategorien.finanzierung.kostenfeststellung,
-      verbleibend: Math.max(0, budgetUebersicht.kategorien.finanzierung.kostenberechnung - budgetUebersicht.kategorien.finanzierung.kostenfeststellung),
-      auslastungProzent: budgetUebersicht.kategorien.finanzierung.auslastungProzent,
+      verbleibend: Math.max(0, finanzierungBudget - budgetUebersicht.kategorien.finanzierung.kostenfeststellung),
+      auslastungProzent: finanzierungBudget > 0 ? (budgetUebersicht.kategorien.finanzierung.kostenfeststellung / finanzierungBudget) * 100 : 0,
       farbe: BUDGET_KATEGORIE_CONFIG.finanzierung.chartColor
     }
   ];

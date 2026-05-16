@@ -76,9 +76,10 @@ export interface Rechnung {
   betragNetto: number;
   typ: RechnungsTyp;
   geprueft: boolean; // Legacy
-  geprueftDatum?: string;
+  geprueftDatum?: string; // Datum Rechnungsprüfung durch Projektsteuerer
   freigegeben: boolean; // Legacy
-  bezahltDatum?: string;
+  freigegebenDatum?: string; // Datum Freigabe an Kunden durch Projektsteuerer (NEU)
+  bezahltDatum?: string; // Datum Zahlung durch Kunden
   bereitsInFeeAbgerechnet: boolean;
   sicherheitseinbehaltNetto?: number; // Legacy - nur für Migration
   sicherheiten?: RechnungSicherheiten; // NEU: Detaillierte Sicherheiten
@@ -216,8 +217,9 @@ export interface Gewerk {
   projektId: string;
   dinNummer: string;
   bezeichnung: string;
-  kostenschaetzung?: number; // Netto €
-  kostenberechnung?: number; // Netto €
+  kostenschaetzung?: number; // KS – LP2, Netto €
+  kostenberechnung?: number; // KB – LP3, Netto €
+  kostenvoranschlag?: number; // KV – LP5, Netto € (NEU)
   endabnahmeDatum?: string;
   teilabnahmen: Teilabnahme[];
   gewaehrleistungsfristEnde?: string; // Berechnet aus Endabnahme + 5 Jahre
@@ -431,13 +433,19 @@ export type KostengruppeTyp =
   | 'risikoreserve';       // KG 999
 
 // Mapping DIN-Nummern zu Kategorien
+// Fee Projektsteuerung: 711 Projektleitung + 713 Projektsteuerung (DIN 276:2018-12)
+// Weitere Baunebenkosten: KG 700 außer 711, 713, 730-749 (diese sind separat in anderen Positionen)
 export const DIN_KOSTENGRUPPEN_MAPPING: Record<KostengruppeTyp, string[]> = {
-  fachplaner: ['730', '740'],
+  fachplaner: ['730', '731', '732', '733', '734', '735', '736', '737', '738', '739',
+               '740', '741', '742', '743', '744', '745', '746', '747', '748', '749'],
   fachfirmen: ['300', '310', '320', '330', '340', '350', '360', '370', '390',
                '400', '410', '420', '430', '440', '450', '460', '470', '480', '490',
                '500', '600'],
-  feeProjectsteuerung: ['710'],
-  weitereBaunebenkosten: ['720', '750', '760', '790'],
+  feeProjectsteuerung: ['711', '713'],
+  weitereBaunebenkosten: ['700', '710', '712', '714', '715', '716', '717', '718', '719',
+                          '720', '721', '722', '723', '724', '725', '726', '727', '728', '729',
+                          '750', '751', '752', '753', '754', '755', '756', '757', '758', '759',
+                          '760', '770', '790', '791', '792', '793', '794', '795', '796', '797', '798', '799'],
   finanzierung: ['800', '810', '820', '830', '890'],
   risikoreserve: ['999']
 };
@@ -452,12 +460,30 @@ export const BUDGET_KATEGORIE_CONFIG: Record<KostengruppeTyp, { label: string; f
   risikoreserve: { label: 'Risikoreserve', farbe: 'bg-gray-500', chartColor: '#6B7280' }
 };
 
-// Budget-Allokation für manuelle Kategorien
+// Budget-Allokation für manuelle Kategorien (4 Stufen pro Kategorie)
 export interface BudgetAllokation {
+  // Weitere Baunebenkosten (KG 700, 720, 750, 760, 790)
+  weitereBaunebenkostenKS?: number;
+  weitereBaunebenkostenKB?: number;
+  weitereBaunebenkostenKV?: number;
+  weitereBaunebenkostenKA?: number;
+
+  // Finanzierung (KG 800)
+  finanzierungKS?: number;
+  finanzierungKB?: number;
+  finanzierungKV?: number;
+  finanzierungKA?: number;
+
+  // Risikoreserve (KG 999) – manuell pro Stufe, EUR-Beträge
+  risikoreserveKS?: number;
+  risikoreserveKB?: number;
+  risikoreserveKV?: number;
+  risikoreserveKA?: number;
+
+  // @deprecated – nur für Migration alter Datensätze
   weitereBaunebenkostenEstimate?: number;
   finanzierungEstimate?: number;
   risikoreservePercent?: number;
-  // HINWEIS: feeProjectsteuerung wird aus existierenden feeRechnungen berechnet!
 }
 
 // Extended Budget-Übersicht mit allen Kategorien
@@ -465,15 +491,43 @@ export interface ExtendedBudgetUebersicht {
   kategorien: Record<KostengruppeTyp, {
     kostenschaetzung: number;
     kostenberechnung: number;
+    kostenvoranschlag: number;     // KV – LP5 (NEU)
+    kostenanschlag: number;        // Summe freigegebener/beauftragter/abgerechneter Angebote
     kostenfeststellung: number;
-    differenzKBProzent: number;  // (KB-KS)/KS * 100
-    differenzKFProzent: number;  // (KF-KB)/KB * 100
-    auslastungProzent: number;   // KF/KB * 100
+    differenzKBProzent: number;    // (KB-KS)/KS * 100
+    differenzKVProzent: number;    // (KV-KB)/KB * 100 (NEU)
+    differenzKAProzent: number;    // (KA-KV)/KV * 100 (geändert: jetzt KA vs KV)
+    differenzKFProzent: number;    // (KF-KA)/KA * 100
+    auslastungProzent: number;     // KF/KA * 100
   }>;
   gesamtKostenschaetzung: number;
   gesamtKostenberechnung: number;
+  gesamtKostenvoranschlag: number; // NEU
+  gesamtKostenanschlag: number;
   gesamtKostenfeststellung: number;
 }
+
+// Kostenstufen-Typ für HOAI/DIN 276
+export type Kostenstufe = 'ks' | 'kb' | 'kv' | 'ka' | 'kf';
+
+// Mapping AHO-Phasen → Kostenstufe
+// Angepasst an die tatsächlichen AHO_PHASEN Werte
+export const PHASE_ZU_KOSTENSTUFE: Record<AHOPhase, Kostenstufe> = {
+  'Projektvorbereitung': 'ks',      // LP1/LP2 → Kostenschätzung
+  'Planung': 'kb',                  // LP3 → Kostenberechnung
+  'Ausführungsvorbereitung': 'kv',  // LP5 → Kostenvoranschlag
+  'Ausführung': 'ka',               // LP7 → Kostenanschlag
+  'Projektabschluss': 'kf'          // LP8/LP9 → Kostenfeststellung
+};
+
+// Labels für Kostenstufen
+export const KOSTENSTUFE_LABELS: Record<Kostenstufe, string> = {
+  'ks': 'Kostenschätzung (LP 2)',
+  'kb': 'Kostenberechnung (LP 3)',
+  'kv': 'Kostenvoranschlag (LP 5)',
+  'ka': 'Kostenanschlag (LP 7)',
+  'kf': 'Kostenfeststellung (LP 8/9)'
+};
 
 // Standard DIN 276 Gewerke-Liste
 export const DIN_GEWERKE = [

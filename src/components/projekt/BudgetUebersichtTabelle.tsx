@@ -15,13 +15,32 @@ interface ModalState {
   kategorie: KostengruppeTyp | null;
 }
 
+// Initialisiere Edit-Werte mit Migration für alte Daten
+const initEditValues = (allokation?: BudgetAllokation): BudgetAllokation => {
+  const weitereBNK = allokation?.weitereBaunebenkostenEstimate ?? 0;
+  const finanz = allokation?.finanzierungEstimate ?? 0;
+
+  return {
+    weitereBaunebenkostenKS: allokation?.weitereBaunebenkostenKS ?? weitereBNK,
+    weitereBaunebenkostenKB: allokation?.weitereBaunebenkostenKB ?? weitereBNK,
+    weitereBaunebenkostenKV: allokation?.weitereBaunebenkostenKV ?? weitereBNK,
+    weitereBaunebenkostenKA: allokation?.weitereBaunebenkostenKA ?? weitereBNK,
+    finanzierungKS: allokation?.finanzierungKS ?? finanz,
+    finanzierungKB: allokation?.finanzierungKB ?? finanz,
+    finanzierungKV: allokation?.finanzierungKV ?? finanz,
+    finanzierungKA: allokation?.finanzierungKA ?? finanz,
+    risikoreserveKS: allokation?.risikoreserveKS ?? 0,
+    risikoreserveKB: allokation?.risikoreserveKB ?? 0,
+    risikoreserveKV: allokation?.risikoreserveKV ?? 0,
+    risikoreserveKA: allokation?.risikoreserveKA ?? 0,
+  };
+};
+
 const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, onUpdate }) => {
   const [modal, setModal] = useState<ModalState>({ isOpen: false, kategorie: null });
-  const [editValues, setEditValues] = useState<BudgetAllokation>({
-    weitereBaunebenkostenEstimate: projekt.budgetAllokation?.weitereBaunebenkostenEstimate || 0,
-    finanzierungEstimate: projekt.budgetAllokation?.finanzierungEstimate || 0,
-    risikoreservePercent: projekt.budgetAllokation?.risikoreservePercent || 0
-  });
+  const [editValues, setEditValues] = useState<BudgetAllokation>(() =>
+    initEditValues(projekt.budgetAllokation)
+  );
 
   // Reihenfolge der Kategorien für die Tabelle
   const kategorienReihenfolge: KostengruppeTyp[] = [
@@ -80,26 +99,38 @@ const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, o
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Kategorie
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kostenschätzung
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  KS
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kostenberechnung
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  KB
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Diff KB/KS
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Diff
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kostenfeststellung
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  KV
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Diff KF/KB
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Diff
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Auslastung
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  KA
+                </th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Diff
+                </th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  KF
+                </th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Diff
+                </th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  %
                 </th>
               </tr>
             </thead>
@@ -118,7 +149,7 @@ const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, o
                     onClick={() => handleRowClick(kat)}
                     title={bearbeitbar ? 'Klicken zum Bearbeiten' : undefined}
                   >
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <div
                           className="w-3 h-3 rounded-sm flex-shrink-0"
@@ -126,32 +157,45 @@ const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, o
                         />
                         <span className="text-sm font-medium text-gray-900">{config.label}</span>
                         {bearbeitbar && (
-                          <span className="text-xs text-gray-400 ml-1">(bearbeitbar)</span>
+                          <span className="text-xs text-gray-400 ml-1">✏️</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
+                    <td className="px-2 py-2 text-sm text-right text-gray-900">
                       {data.kostenschaetzung > 0 ? formatWaehrung(data.kostenschaetzung) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">
+                    <td className="px-2 py-2 text-sm text-right text-gray-900">
                       {data.kostenberechnung > 0 ? formatWaehrung(data.kostenberechnung) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right">
+                    <td className="px-2 py-2 text-sm text-right">
                       {data.kostenschaetzung > 0 ? formatDifferenz(data.differenzKBProzent) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
+                    {/* NEU: KV-Spalte */}
+                    <td className="px-2 py-2 text-sm text-right text-gray-900">
+                      {data.kostenvoranschlag > 0 ? formatWaehrung(data.kostenvoranschlag) : '-'}
+                    </td>
+                    <td className="px-2 py-2 text-sm text-right">
+                      {data.kostenberechnung > 0 ? formatDifferenz(data.differenzKVProzent) : '-'}
+                    </td>
+                    <td className="px-2 py-2 text-sm text-right text-gray-900 font-medium">
+                      {data.kostenanschlag > 0 ? formatWaehrung(data.kostenanschlag) : '-'}
+                    </td>
+                    <td className="px-2 py-2 text-sm text-right">
+                      {data.kostenvoranschlag > 0 ? formatDifferenz(data.differenzKAProzent) : '-'}
+                    </td>
+                    <td className="px-2 py-2 text-sm text-right text-gray-900">
                       {data.kostenfeststellung > 0 ? formatWaehrung(data.kostenfeststellung) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {data.kostenberechnung > 0 ? formatDifferenz(data.differenzKFProzent) : '-'}
+                    <td className="px-2 py-2 text-sm text-right">
+                      {data.kostenanschlag > 0 ? formatDifferenz(data.differenzKFProzent) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {data.kostenberechnung > 0 ? (
+                    <td className="px-2 py-2 text-sm text-right">
+                      {data.kostenanschlag > 0 ? (
                         <span className={`font-medium ${
                           data.auslastungProzent > 100 ? 'text-red-600' :
                           data.auslastungProzent > 80 ? 'text-yellow-600' : 'text-gray-900'
                         }`}>
-                          {data.auslastungProzent.toFixed(1)}%
+                          {data.auslastungProzent.toFixed(0)}%
                         </span>
                       ) : '-'}
                     </td>
@@ -161,33 +205,50 @@ const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, o
 
               {/* Summenzeile */}
               <tr className="bg-gray-100 font-semibold">
-                <td className="px-4 py-3 text-sm text-gray-900">Gesamt</td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900">
+                <td className="px-3 py-2 text-sm text-gray-900">Gesamt</td>
+                <td className="px-2 py-2 text-sm text-right text-gray-900">
                   {formatWaehrung(budgetUebersicht.gesamtKostenschaetzung)}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900">
+                <td className="px-2 py-2 text-sm text-right text-gray-900">
                   {formatWaehrung(budgetUebersicht.gesamtKostenberechnung)}
                 </td>
-                <td className="px-4 py-3 text-sm text-right">
+                <td className="px-2 py-2 text-sm text-right">
                   {budgetUebersicht.gesamtKostenschaetzung > 0
                     ? formatDifferenz(((budgetUebersicht.gesamtKostenberechnung - budgetUebersicht.gesamtKostenschaetzung) / budgetUebersicht.gesamtKostenschaetzung) * 100)
                     : '-'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900">
-                  {formatWaehrung(budgetUebersicht.gesamtKostenfeststellung)}
+                {/* NEU: KV-Spalte */}
+                <td className="px-2 py-2 text-sm text-right text-gray-900">
+                  {formatWaehrung(budgetUebersicht.gesamtKostenvoranschlag)}
                 </td>
-                <td className="px-4 py-3 text-sm text-right">
+                <td className="px-2 py-2 text-sm text-right">
                   {budgetUebersicht.gesamtKostenberechnung > 0
-                    ? formatDifferenz(((budgetUebersicht.gesamtKostenfeststellung - budgetUebersicht.gesamtKostenberechnung) / budgetUebersicht.gesamtKostenberechnung) * 100)
+                    ? formatDifferenz(((budgetUebersicht.gesamtKostenvoranschlag - budgetUebersicht.gesamtKostenberechnung) / budgetUebersicht.gesamtKostenberechnung) * 100)
                     : '-'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right">
-                  {budgetUebersicht.gesamtKostenberechnung > 0 ? (
+                <td className="px-2 py-2 text-sm text-right text-gray-900">
+                  {formatWaehrung(budgetUebersicht.gesamtKostenanschlag)}
+                </td>
+                <td className="px-2 py-2 text-sm text-right">
+                  {budgetUebersicht.gesamtKostenvoranschlag > 0
+                    ? formatDifferenz(((budgetUebersicht.gesamtKostenanschlag - budgetUebersicht.gesamtKostenvoranschlag) / budgetUebersicht.gesamtKostenvoranschlag) * 100)
+                    : '-'}
+                </td>
+                <td className="px-2 py-2 text-sm text-right text-gray-900">
+                  {formatWaehrung(budgetUebersicht.gesamtKostenfeststellung)}
+                </td>
+                <td className="px-2 py-2 text-sm text-right">
+                  {budgetUebersicht.gesamtKostenanschlag > 0
+                    ? formatDifferenz(((budgetUebersicht.gesamtKostenfeststellung - budgetUebersicht.gesamtKostenanschlag) / budgetUebersicht.gesamtKostenanschlag) * 100)
+                    : '-'}
+                </td>
+                <td className="px-2 py-2 text-sm text-right">
+                  {budgetUebersicht.gesamtKostenanschlag > 0 ? (
                     <span className={`font-medium ${
-                      (budgetUebersicht.gesamtKostenfeststellung / budgetUebersicht.gesamtKostenberechnung * 100) > 100 ? 'text-red-600' :
-                      (budgetUebersicht.gesamtKostenfeststellung / budgetUebersicht.gesamtKostenberechnung * 100) > 80 ? 'text-yellow-600' : ''
+                      (budgetUebersicht.gesamtKostenfeststellung / budgetUebersicht.gesamtKostenanschlag * 100) > 100 ? 'text-red-600' :
+                      (budgetUebersicht.gesamtKostenfeststellung / budgetUebersicht.gesamtKostenanschlag * 100) > 80 ? 'text-yellow-600' : ''
                     }`}>
-                      {((budgetUebersicht.gesamtKostenfeststellung / budgetUebersicht.gesamtKostenberechnung) * 100).toFixed(1)}%
+                      {((budgetUebersicht.gesamtKostenfeststellung / budgetUebersicht.gesamtKostenanschlag) * 100).toFixed(0)}%
                     </span>
                   ) : '-'}
                 </td>
@@ -197,7 +258,7 @@ const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, o
         </div>
 
         <div className="mt-3 text-xs text-gray-500">
-          <span>KS = Kostenschätzung | KB = Kostenberechnung | KF = Kostenfeststellung (bezahlt)</span>
+          <span>KS = Kostenschätzung (LP2) | KB = Kostenberechnung (LP3) | KV = Kostenvoranschlag (LP5) | KA = Kostenanschlag (LP7) | KF = Kostenfeststellung (LP8/9)</span>
         </div>
       </div>
 
@@ -209,71 +270,197 @@ const BudgetUebersichtTabelle: React.FC<Props> = ({ projekt, budgetUebersicht, o
               {BUDGET_KATEGORIE_CONFIG[modal.kategorie].label} bearbeiten
             </h3>
 
+            {/* Weitere Baunebenkosten: 4 Felder für KS/KB/KV/KA */}
             {modal.kategorie === 'weitereBaunebenkosten' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Geschätzte Baunebenkosten (netto)
-                  </label>
-                  <input
-                    type="number"
-                    value={editValues.weitereBaunebenkostenEstimate || 0}
-                    onChange={(e) => setEditValues({
-                      ...editValues,
-                      weitereBaunebenkostenEstimate: parseFloat(e.target.value) || 0
-                    })}
-                    className="input w-full"
-                    min="0"
-                    step="1000"
-                  />
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 mb-2">Geben Sie die Baunebenkosten für jede Kostenstufe ein (netto):</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KS (Schätzung)</label>
+                    <input
+                      type="number"
+                      value={editValues.weitereBaunebenkostenKS || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        weitereBaunebenkostenKS: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KB (Berechnung)</label>
+                    <input
+                      type="number"
+                      value={editValues.weitereBaunebenkostenKB || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        weitereBaunebenkostenKB: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KV (Voranschlag)</label>
+                    <input
+                      type="number"
+                      value={editValues.weitereBaunebenkostenKV || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        weitereBaunebenkostenKV: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KA (Anschlag)</label>
+                    <input
+                      type="number"
+                      value={editValues.weitereBaunebenkostenKA || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        weitereBaunebenkostenKA: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* Finanzierung: 4 Felder für KS/KB/KV/KA */}
             {modal.kategorie === 'finanzierung' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Geschätzte Finanzierungskosten (netto)
-                  </label>
-                  <input
-                    type="number"
-                    value={editValues.finanzierungEstimate || 0}
-                    onChange={(e) => setEditValues({
-                      ...editValues,
-                      finanzierungEstimate: parseFloat(e.target.value) || 0
-                    })}
-                    className="input w-full"
-                    min="0"
-                    step="1000"
-                  />
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 mb-2">Geben Sie die Finanzierungskosten für jede Kostenstufe ein (netto):</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KS (Schätzung)</label>
+                    <input
+                      type="number"
+                      value={editValues.finanzierungKS || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        finanzierungKS: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KB (Berechnung)</label>
+                    <input
+                      type="number"
+                      value={editValues.finanzierungKB || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        finanzierungKB: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KV (Voranschlag)</label>
+                    <input
+                      type="number"
+                      value={editValues.finanzierungKV || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        finanzierungKV: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KA (Anschlag)</label>
+                    <input
+                      type="number"
+                      value={editValues.finanzierungKA || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        finanzierungKA: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* Risikoreserve: 4 Felder für KS/KB/KV/KA (EUR-Beträge, kein Prozent mehr) */}
             {modal.kategorie === 'risikoreserve' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Risikoreserve (% vom Projektbudget)
-                  </label>
-                  <input
-                    type="number"
-                    value={editValues.risikoreservePercent || 0}
-                    onChange={(e) => setEditValues({
-                      ...editValues,
-                      risikoreservePercent: parseFloat(e.target.value) || 0
-                    })}
-                    className="input w-full"
-                    min="0"
-                    max="50"
-                    step="0.5"
-                  />
-                  {editValues.risikoreservePercent && editValues.risikoreservePercent > 0 && (
-                    <p className="mt-1 text-sm text-gray-500">
-                      = {formatWaehrung(projekt.projektbudgetFreigegeben * (editValues.risikoreservePercent / 100))}
-                    </p>
-                  )}
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 mb-2">Geben Sie die Risikoreserve für jede Kostenstufe ein (netto):</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KS (Schätzung)</label>
+                    <input
+                      type="number"
+                      value={editValues.risikoreserveKS || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        risikoreserveKS: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KB (Berechnung)</label>
+                    <input
+                      type="number"
+                      value={editValues.risikoreserveKB || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        risikoreserveKB: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KV (Voranschlag)</label>
+                    <input
+                      type="number"
+                      value={editValues.risikoreserveKV || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        risikoreserveKV: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">KA (Anschlag)</label>
+                    <input
+                      type="number"
+                      value={editValues.risikoreserveKA || 0}
+                      onChange={(e) => setEditValues({
+                        ...editValues,
+                        risikoreserveKA: parseFloat(e.target.value) || 0
+                      })}
+                      className="input w-full"
+                      min="0"
+                      step="1000"
+                    />
+                  </div>
                 </div>
               </div>
             )}
